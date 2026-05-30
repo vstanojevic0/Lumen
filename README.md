@@ -12,6 +12,10 @@ Desktop photo library for Windows and macOS (Avalonia + .NET 10). Browse photos 
 dotnet run
 ```
 
+## Windows download (pre-built)
+
+**[Download Lumen-win-x64.zip (v0.1.0)](https://github.com/vstanojevic0/Lumen/releases/latest)** — unzip and run `Lumen.exe`.
+
 ## Windows build (portable folder)
 
 On Windows (PowerShell):
