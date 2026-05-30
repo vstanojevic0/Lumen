@@ -1,0 +1,69 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Style Selector="Window">
+    <Setter Property="Background" Value="#0B1018" />
+    <Setter Property="FontFamily" Value="Inter" />
+  </Style>
+
+  <Style Selector="Border.glass-panel">
+    <Setter Property="Background" Value="#CC121820" />
+    <Setter Property="BorderBrush" Value="#22FFFFFF" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="14" />
+  </Style>
+
+  <Style Selector="Border.sidebar">
+    <Setter Property="Background" Value="#E610141C" />
+    <Setter Property="BorderBrush" Value="#18FFFFFF" />
+    <Setter Property="BorderThickness" Value="0,0,1,0" />
+  </Style>
+
+  <Style Selector="Button.nav-item">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Foreground" Value="#CCFFFFFF" />
+  </Style>
+
+  <Style Selector="Button.nav-item:pointerover">
+    <Setter Property="Background" Value="#18FFFFFF" />
+  </Style>
+
+  <Style Selector="Button.nav-item.active">
+    <Setter Property="Background" Value="#243248" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="#2F8CFF" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="14,10" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="TextBox.search">
+    <Setter Property="Background" Value="#1A2230" />
+    <Setter Property="BorderBrush" Value="#22FFFFFF" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="12,10" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <Style Selector="Slider.edit-slider">
+    <Setter Property="Foreground" Value="#2F8CFF" />
+  </Style>
+
+  <Style Selector="Border.filmstrip-item">
+    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="Border.filmstrip-item.selected">
+    <Setter Property="BorderBrush" Value="#2F8CFF" />
+  </Style>
+</Styles>

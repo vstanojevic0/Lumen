@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Lumen.ViewModels"
+        x:Class="Lumen.FirstRunWindow"
+        x:DataType="vm:FirstRunViewModel"
+        Title="Welcome to Lumen"
+        Width="520"
+        SizeToContent="Height"
+        MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+  <Border Padding="24">
+    <StackPanel Spacing="16">
+      <TextBlock Text="Photo library setup"
+                 FontSize="22"
+                 FontWeight="SemiBold" />
+      <TextBlock Text="{Binding HintText}"
+                 TextWrapping="Wrap"
+                 Opacity="0.85"
+                 LineHeight="22" />
+      <Border CornerRadius="10"
+              Padding="12"
+              Background="#14000000"
+              BorderBrush="#22000000"
+              BorderThickness="1">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Locations to scan"
+                     FontWeight="SemiBold"
+                     Opacity="0.9" />
+          <ItemsControl ItemsSource="{Binding Locations}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:DriveToggleItem">
+                <CheckBox Margin="0,4"
+                          Content="{Binding DisplayName}"
+                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                          ToolTip.Tip="{Binding AbsolutePath}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+        <Button Content="Use all suggested"
+                Command="{Binding UseDefaultsCommand}" />
+        <Button Content="Continue"
+                Command="{Binding ContinueCommand}" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>
