@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using Lumen.Services.Catalog;
 using Lumen.Services.Scanning;
@@ -13,11 +14,6 @@ namespace Lumen;
 
 public partial class MainWindow : Window
 {
-    private bool _previewPanning;
-    private Point _previewPanStart;
-    private double _previewPanOriginX;
-    private double _previewPanOriginY;
-
     public MainWindow()
         : this(new MainWindowViewModel(new FileSystemPhotoScanner(), new InMemoryLibraryIndex(), new JsonAppSettingsStore()))
     {
@@ -28,33 +24,38 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = viewModel;
         viewModel.AttachTopLevel(this);
+
         viewModel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(MainWindowViewModel.IsEditMode) && viewModel.IsEditMode)
-                EditPreviewHost?.Focus();
+                EditCanvasHost?.Focus();
         };
+
         viewModel.EditSession.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName is nameof(EditSessionViewModel.PreviewZoom)
+            if (e.PropertyName is nameof(EditSessionViewModel.DisplayImage)
+                or nameof(EditSessionViewModel.PreviewZoom)
                 or nameof(EditSessionViewModel.PreviewPanX)
                 or nameof(EditSessionViewModel.PreviewPanY))
-                UpdatePreviewTransform(viewModel.EditSession);
+            {
+                SyncEditPreview(viewModel.EditSession);
+            }
         };
-        viewModel.ScrollToFolderRequested += ScrollToFolderInTimeline;
 
-        EditPreviewHost.PointerWheelChanged += OnEditPreviewWheel;
-        EditPreviewHost.PointerPressed += OnEditPreviewPointerPressed;
-        EditPreviewHost.PointerMoved += OnEditPreviewPointerMoved;
-        EditPreviewHost.PointerReleased += OnEditPreviewPointerReleased;
-        EditPreviewHost.KeyDown += OnEditPreviewKeyDown;
+        EditCanvasHost.PointerWheelChanged += OnEditCanvasWheel;
+        EditCanvasHost.KeyDown += OnEditCanvasKeyDown;
 
         AddHandler(InputElement.KeyDownEvent, OnEditKeyDownTunnel, RoutingStrategies.Tunnel);
         Loaded += OnLoaded;
     }
 
-    private void UpdatePreviewTransform(EditSessionViewModel session)
+    private void SyncEditPreview(EditSessionViewModel session)
     {
-        EditPreviewViewbox.RenderTransform = new TransformGroup
+        if (EditPreviewImage is null)
+            return;
+
+        EditPreviewImage.Source = session.DisplayImage;
+        EditPreviewImage.RenderTransform = new TransformGroup
         {
             Children =
             {
@@ -64,39 +65,18 @@ public partial class MainWindow : Window
         };
     }
 
-    private void ZoomPreviewAtCursor(PointerWheelEventArgs e, EditSessionViewModel session)
+    private void OnEditCanvasWheel(object? sender, PointerWheelEventArgs e)
     {
-        var factor = e.Delta.Y > 0 ? 1.12 : 1 / 1.12;
-        var oldZoom = session.PreviewZoom;
-        var newZoom = Math.Clamp(oldZoom * factor, 0.25, 8);
-        if (Math.Abs(newZoom - oldZoom) < 0.0001)
-            return;
-
-        var cursor = e.GetPosition(EditPreviewViewbox);
-        var oldPanX = session.PreviewPanX;
-        var oldPanY = session.PreviewPanY;
-
-        // screen = pan + local * zoom
-        var localX = (cursor.X - oldPanX) / oldZoom;
-        var localY = (cursor.Y - oldPanY) / oldZoom;
-
-        session.PreviewZoom = newZoom;
-        session.PreviewPanX = cursor.X - localX * newZoom;
-        session.PreviewPanY = cursor.Y - localY * newZoom;
-
-        UpdatePreviewTransform(session);
-    }
-
-    private void OnEditPreviewWheel(object? sender, PointerWheelEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm)
+        if (DataContext is not MainWindowViewModel vm || !vm.IsEditMode)
             return;
 
         var session = vm.EditSession;
 
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
         {
-            ZoomPreviewAtCursor(e, session);
+            var factor = e.Delta.Y > 0 ? 1.1 : 1 / 1.1;
+            var pct = (int)Math.Clamp(vm.PreviewZoomPercent * factor, 25, 400);
+            vm.PreviewZoomPercent = pct;
             e.Handled = true;
             return;
         }
@@ -104,46 +84,11 @@ public partial class MainWindow : Window
         if (session.IsCropMode)
             return;
 
-        var delta = e.Delta.Y > 0 ? -1 : 1;
-        vm.NavigateEditPhoto(delta);
+        vm.NavigateEditPhoto(e.Delta.Y > 0 ? -1 : 1);
         e.Handled = true;
     }
 
-    private void OnEditPreviewPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel vm)
-            return;
-
-        var session = vm.EditSession;
-        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || session.PreviewZoom <= 1.01)
-            return;
-
-        _previewPanning = true;
-        _previewPanStart = e.GetPosition(EditPreviewViewbox);
-        _previewPanOriginX = session.PreviewPanX;
-        _previewPanOriginY = session.PreviewPanY;
-        e.Pointer.Capture(EditPreviewHost);
-        e.Handled = true;
-    }
-
-    private void OnEditPreviewPointerMoved(object? sender, PointerEventArgs e)
-    {
-        if (!_previewPanning || DataContext is not MainWindowViewModel vm)
-            return;
-
-        var pos = e.GetPosition(EditPreviewViewbox);
-        vm.EditSession.PreviewPanX = _previewPanOriginX + (pos.X - _previewPanStart.X);
-        vm.EditSession.PreviewPanY = _previewPanOriginY + (pos.Y - _previewPanStart.Y);
-        e.Handled = true;
-    }
-
-    private void OnEditPreviewPointerReleased(object? sender, PointerReleasedEventArgs e)
-    {
-        _previewPanning = false;
-        e.Pointer.Capture(null);
-    }
-
-    private void OnEditPreviewKeyDown(object? sender, KeyEventArgs e)
+    private void OnEditCanvasKeyDown(object? sender, KeyEventArgs e)
     {
         if (HandleEditNavigationKey(e))
             e.Handled = true;
@@ -181,20 +126,13 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ScrollToFolderInTimeline(string folderPath)
+    private void FolderAlbum_OnTapped(object? sender, TappedEventArgs e)
     {
-        if (TimelineList is null || DataContext is not MainWindowViewModel vm)
+        if (DataContext is not MainWindowViewModel vm)
             return;
 
-        var index = vm.FindTimelineIndexForFolder(folderPath);
-        if (index < 0 || index >= vm.TimelineItems.Count)
-            return;
-
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            TimelineList.SelectedIndex = index;
-            TimelineList.ScrollIntoView(vm.TimelineItems[index]);
-        }, Avalonia.Threading.DispatcherPriority.Loaded);
+        if (sender is StyledElement { DataContext: FolderAlbumViewModel album })
+            vm.OpenFolderAlbum(album);
     }
 
     private async void OnLoaded(object? sender, RoutedEventArgs e)
@@ -217,9 +155,7 @@ public partial class MainWindow : Window
         if (DataContext is not MainWindowViewModel vm)
             return;
 
-        if (sender is not StyledElement { DataContext: PhotoTileViewModel tile })
-            return;
-
-        vm.SelectFilmstripTile(tile);
+        if (sender is StyledElement { DataContext: PhotoTileViewModel tile })
+            vm.SelectFilmstripTile(tile);
     }
 }

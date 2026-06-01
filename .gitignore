@@ -1,4 +1,6 @@
 bin/
 obj/
 artifacts/
+web/node_modules/
+web/dist/
 .idea/

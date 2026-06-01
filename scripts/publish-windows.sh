@@ -1,5 +1,4 @@
-#!/usr/bin/env bash
-# Cross-publish portable Windows x64 build from macOS/Linux.
+#!/usr/bin/env bash# Cross-publish portable Windows x64 build from macOS/Linux.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/artifacts/Lumen-win-x64"

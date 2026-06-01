@@ -148,10 +148,38 @@ public sealed class InMemoryLibraryIndex : ILibraryIndex
         lock (_gate)
         {
             var filtered = FilterByFolder(_photos, folderPrefix);
-            if (granularity != DateBucketGranularity.Day)
-                granularity = DateBucketGranularity.Day;
 
-            var groups = filtered
+            if (granularity == DateBucketGranularity.Month)
+            {
+                return filtered
+                    .GroupBy(p => GetMonthKey(p.CapturedAt))
+                    .OrderByDescending(g => g.Key ?? (0, 0))
+                    .Select(g =>
+                    {
+                        if (g.Key is null)
+                        {
+                            return new DateHierarchyBucket(
+                                DateBucketGranularity.Month,
+                                0,
+                                null,
+                                null,
+                                g.OrderBy(x => x.AbsolutePath, StringComparer.Ordinal).ToList());
+                        }
+
+                        var (year, month) = g.Key.Value;
+                        return new DateHierarchyBucket(
+                            DateBucketGranularity.Month,
+                            year,
+                            month,
+                            null,
+                            g.OrderByDescending(x => x.CapturedAt)
+                                .ThenBy(x => x.AbsolutePath, StringComparer.Ordinal)
+                                .ToList());
+                    })
+                    .ToList();
+            }
+
+            var dayGroups = filtered
                 .GroupBy(p => GetDayKey(p.CapturedAt))
                 .OrderByDescending(g => g.Key ?? DateOnly.MinValue)
                 .Select(g =>
@@ -176,7 +204,7 @@ public sealed class InMemoryLibraryIndex : ILibraryIndex
                 })
                 .ToList();
 
-            return groups;
+            return dayGroups;
         }
     }
 
@@ -249,6 +277,14 @@ public sealed class InMemoryLibraryIndex : ILibraryIndex
             return null;
         var l = capturedAt.Value.ToLocalTime();
         return DateOnly.FromDateTime(l.DateTime);
+    }
+
+    private static (int Year, int Month)? GetMonthKey(DateTimeOffset? capturedAt)
+    {
+        if (capturedAt is null)
+            return null;
+        var l = capturedAt.Value.ToLocalTime();
+        return (l.Year, l.Month);
     }
 
     private static int CompareByDateDescThenPath(PhotoEntry a, PhotoEntry b)

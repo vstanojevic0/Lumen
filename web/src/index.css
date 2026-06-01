@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-lumen-bg: #080c12;
+  --color-lumen-panel: #0f141c;
+  --color-lumen-glass: rgb(18 24 34 / 0.72);
+  --color-lumen-border: rgb(255 255 255 / 0.08);
+  --color-lumen-accent: #3b9bff;
+  --color-lumen-accent-dim: #2a6fd4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-lumen-bg);
+  color: #e8edf5;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.12);
+  border-radius: 4px;
+}
+
+.glass {
+  background: var(--color-lumen-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-lumen-border);
+}

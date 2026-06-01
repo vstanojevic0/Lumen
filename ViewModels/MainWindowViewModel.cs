@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
@@ -17,8 +18,6 @@ namespace Lumen.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
-    private const int TimelineBatchSize = 500;
-
     private readonly ILibraryScanner _scanner;
     private readonly InMemoryLibraryIndex _index;
     private readonly IAppSettingsStore _store;
@@ -27,18 +26,36 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusText = "Preparing library…";
-    [ObservableProperty] private FolderTreeNodeViewModel? _selectedFolder;
+    [ObservableProperty] private LibraryViewMode _viewMode = LibraryViewMode.Library;
+    [ObservableProperty] private string? _openFolderPath;
+    [ObservableProperty] private string _centerTitle = "Library";
+    [ObservableProperty] private FolderListItemViewModel? _selectedFolder;
     [ObservableProperty] private bool _isEditMode;
     [ObservableProperty] private string _searchQuery = string.Empty;
-    [ObservableProperty] private double _thumbnailSize = 168;
     [ObservableProperty] private int _totalPhotoCount;
+    [ObservableProperty] private int _previewZoomPercent = 100;
+
+    public bool IsEditWorkspace => IsEditMode;
+    public bool IsLibraryGridVisible => !IsEditMode && IsPhotoTimelineVisible;
+    public bool IsFolderAlbumGridVisible => !IsEditMode && IsFolderAlbumsMode;
 
     private bool _applyingScanResults;
 
     public ThumbnailLoadQueue ThumbnailQueue { get; } = new();
     public EditSessionViewModel EditSession { get; } = new();
-    public ObservableCollection<FolderTreeNodeViewModel> RootFolders { get; } = new();
-    public ObservableCollection<TimelineListItemViewModel> TimelineItems { get; } = new();
+    public ObservableCollection<FolderListItemViewModel> FolderList { get; } = new();
+    public ObservableCollection<MonthSectionViewModel> GallerySections { get; } = new();
+    public ObservableCollection<FolderAlbumViewModel> FolderAlbums { get; } = new();
+
+    public bool IsLibraryMode => ViewMode == LibraryViewMode.Library;
+    public bool IsFolderAlbumsMode => ViewMode == LibraryViewMode.FolderAlbums;
+    public bool IsFolderPhotosMode => ViewMode == LibraryViewMode.FolderPhotos;
+    public bool IsPhotoTimelineVisible => IsLibraryMode || IsFolderPhotosMode;
+    public bool IsCenterTimelineVisible => IsPhotoTimelineVisible;
+    public bool IsCenterFolderAlbumsVisible => IsFolderAlbumsMode;
+    public bool ShowSidebarFolderList => IsFolderAlbumsMode || IsFolderPhotosMode;
+
+    private PhotoTileViewModel? _inspectorTile;
 
     public MainWindowViewModel(ILibraryScanner scanner, InMemoryLibraryIndex index, IAppSettingsStore store)
     {
@@ -79,19 +96,97 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     {
         if (_applyingScanResults)
             return;
-        _ = RefreshCenterAsync();
+
+        if (IsFolderAlbumsMode)
+            _ = RefreshFolderAlbumsAsync();
+        else if (IsPhotoTimelineVisible)
+            _ = RefreshPhotoTimelineAsync();
     }
 
-    partial void OnSelectedFolderChanged(FolderTreeNodeViewModel? value)
+    partial void OnViewModeChanged(LibraryViewMode value)
+    {
+        OnPropertyChanged(nameof(IsLibraryMode));
+        OnPropertyChanged(nameof(IsFolderAlbumsMode));
+        OnPropertyChanged(nameof(IsFolderPhotosMode));
+        OnPropertyChanged(nameof(IsPhotoTimelineVisible));
+        OnPropertyChanged(nameof(IsCenterTimelineVisible));
+        OnPropertyChanged(nameof(IsCenterFolderAlbumsVisible));
+        OnPropertyChanged(nameof(IsLibraryGridVisible));
+        OnPropertyChanged(nameof(IsFolderAlbumGridVisible));
+        OnPropertyChanged(nameof(ShowSidebarFolderList));
+    }
+
+    partial void OnIsEditModeChanged(bool value)
+    {
+        if (!value)
+            SetInspectorTile(null);
+
+        OnPropertyChanged(nameof(IsEditWorkspace));
+        OnPropertyChanged(nameof(IsLibraryGridVisible));
+        OnPropertyChanged(nameof(IsFolderAlbumGridVisible));
+    }
+
+    partial void OnPreviewZoomPercentChanged(int value)
+    {
+        if (IsEditMode)
+            EditSession.PreviewZoom = Math.Clamp(value / 100.0, 0.25, 4);
+    }
+
+    partial void OnSelectedFolderChanged(FolderListItemViewModel? value)
     {
         if (_applyingScanResults || value is null)
             return;
 
-        StatusText = $"Timeline · {value.Label}";
-        ScrollToFolderRequested?.Invoke(value.AbsolutePath);
+        OpenFolder(value.AbsolutePath, value.Title);
     }
 
-    public event Action<string>? ScrollToFolderRequested;
+    [RelayCommand]
+    private void ShowLibrary()
+    {
+        ViewMode = LibraryViewMode.Library;
+        OpenFolderPath = null;
+        CenterTitle = "Library";
+        SelectedFolder = null;
+        StatusText = TotalPhotoCount > 0 ? $"Library · {TotalPhotoCount:N0} photos" : "Library";
+        _ = RefreshPhotoTimelineAsync();
+    }
+
+    [RelayCommand]
+    private void ShowFolderAlbums()
+    {
+        ViewMode = LibraryViewMode.FolderAlbums;
+        OpenFolderPath = null;
+        CenterTitle = "Folders";
+        SelectedFolder = null;
+        StatusText = $"{FolderAlbums.Count:N0} folders";
+        _ = RefreshFolderAlbumsAsync();
+    }
+
+    [RelayCommand]
+    private void BackFromFolder()
+    {
+        if (IsFolderPhotosMode)
+            ShowFolderAlbumsCommand.Execute(null);
+        else
+            ShowLibraryCommand.Execute(null);
+    }
+
+    public void OpenFolder(string folderPath, string? title = null)
+    {
+        folderPath = Path.TrimEndingDirectorySeparator(folderPath);
+        ViewMode = LibraryViewMode.FolderPhotos;
+        OpenFolderPath = folderPath;
+        CenterTitle = title ?? FormatFolderTitle(folderPath);
+
+        SelectedFolder = FolderList.FirstOrDefault(f =>
+            string.Equals(f.AbsolutePath, folderPath, StringComparison.OrdinalIgnoreCase));
+
+        var count = _index.GetInFolder(folderPath, recursive: false).Count;
+        StatusText = $"{CenterTitle} · {count:N0} photos";
+        _ = RefreshPhotoTimelineAsync();
+    }
+
+    public void OpenFolderAlbum(FolderAlbumViewModel album) => OpenFolder(album.FolderPath, album.Title);
 
     [RelayCommand]
     private async Task RescanLibraryAsync() => await ScanLibraryAsync().ConfigureAwait(true);
@@ -148,7 +243,10 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
 
         IsEditMode = true;
-        var paths = _index.GetOrderedPhotoPaths(folderPrefix: null);
+        PreviewZoomPercent = 100;
+        EditSession.ResetPreviewTransform();
+        SetInspectorTile(tile);
+        var paths = BuildContextPhotoPaths();
         EditSession.SetFilmstripPaths(paths, tile.AbsolutePath);
         await EditSession.LoadPhotoAsync(tile.AbsolutePath, tile.Caption).ConfigureAwait(true);
         StatusText = EditSession.FilmstripPosition.Length > 0
@@ -160,6 +258,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private void CloseEdit()
     {
         IsEditMode = false;
+        EditSession.ResetPreviewTransform();
     }
 
     public void NavigateEditPhoto(int delta)
@@ -167,7 +266,33 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         if (!IsEditMode || !EditSession.TryNavigateFilmstrip(delta))
             return;
 
+        SyncInspectorTileFromSession();
         StatusText = $"{EditSession.FilmstripPosition} — {EditSession.FileName}";
+    }
+
+    private void SetInspectorTile(PhotoTileViewModel? tile)
+    {
+        if (_inspectorTile is not null)
+            _inspectorTile.IsSelected = false;
+
+        _inspectorTile = tile;
+
+        if (_inspectorTile is not null)
+            _inspectorTile.IsSelected = true;
+    }
+
+    private void SyncInspectorTileFromSession()
+    {
+        var path = EditSession.FilePath;
+        if (string.IsNullOrEmpty(path))
+            return;
+
+        var tile = GallerySections
+            .SelectMany(s => s.Photos)
+            .FirstOrDefault(t => string.Equals(t.AbsolutePath, path, StringComparison.OrdinalIgnoreCase));
+
+        if (tile is not null)
+            SetInspectorTile(tile);
     }
 
     public void SelectFilmstripTile(PhotoTileViewModel tile)
@@ -202,6 +327,14 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
         await EditSession.ExportAsync(path).ConfigureAwait(true);
         StatusText = $"Exported to {path}";
+    }
+
+    private IReadOnlyList<string> BuildContextPhotoPaths()
+    {
+        if (IsFolderPhotosMode && !string.IsNullOrEmpty(OpenFolderPath))
+            return _index.GetInFolder(OpenFolderPath, recursive: false).Select(p => p.AbsolutePath).ToList();
+
+        return _index.GetOrderedPhotoPaths(null);
     }
 
     private void PruneOverlappingMacScanRoots(AppSettings settings)
@@ -285,15 +418,17 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         if (roots.Count == 0)
         {
             StatusText = "No valid library locations.";
-            ClearCenter();
-            RootFolders.Clear();
+            ClearPhotoTimeline();
+            ClearFolderAlbums();
+            FolderList.Clear();
             TotalPhotoCount = 0;
             return;
         }
 
         IsBusy = true;
         StatusText = "Scanning…";
-        ClearCenter();
+        ClearPhotoTimeline();
+        ClearFolderAlbums();
 
         try
         {
@@ -304,13 +439,16 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                 _scanner.ScanAsync(roots, progress),
                 CancellationToken.None).ConfigureAwait(false);
 
-            await Dispatcher.UIThread.InvokeAsync(RebuildFolderTree);
+            await Dispatcher.UIThread.InvokeAsync(RebuildFolderList);
 
             _applyingScanResults = true;
             try
             {
-                SelectedFolder = RootFolders.FirstOrDefault();
-                await RefreshCenterAsync().ConfigureAwait(true);
+                ViewMode = LibraryViewMode.Library;
+                OpenFolderPath = null;
+                CenterTitle = "Library";
+                SelectedFolder = null;
+                await RefreshPhotoTimelineAsync().ConfigureAwait(true);
             }
             finally
             {
@@ -318,7 +456,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             }
 
             TotalPhotoCount = _index.TotalPhotoCount();
-            StatusText = $"Indexed {TotalPhotoCount:N0} photos.";
+            StatusText = $"Library · {TotalPhotoCount:N0} photos";
         }
         catch (Exception ex) when (FileSystemPhotoScanner.IsBenignAccessFailure(ex))
         {
@@ -335,72 +473,100 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void RebuildFolderTree()
+    private void RebuildFolderList()
     {
-        RootFolders.Clear();
-        foreach (var node in _index.GetFolderTree())
-            RootFolders.Add(new FolderTreeNodeViewModel(node));
+        FolderList.Clear();
+        var buckets = _index.GetPhotosGroupedByFolder(folderPrefix: null)
+            .OrderByDescending(b => b.Photos.Max(p => p.CapturedAt))
+            .ThenBy(b => b.FolderPath, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var bucket in buckets)
+        {
+            FolderList.Add(new FolderListItemViewModel(
+                FormatFolderTitle(bucket.FolderPath),
+                bucket.FolderPath,
+                bucket.Photos.Count));
+        }
     }
 
-    private void ClearCenter()
+    private void ClearPhotoTimeline()
     {
         _refreshCts?.Cancel();
-        foreach (var item in TimelineItems)
+        foreach (var section in GallerySections)
         {
-            if (item is PhotoTileViewModel tile)
+            foreach (var tile in section.Photos)
+            {
                 ThumbnailQueue.Cancel(tile);
+                tile.Dispose();
+            }
         }
 
-        foreach (var item in TimelineItems.OfType<PhotoTileViewModel>())
-            item.Dispose();
-
-        TimelineItems.Clear();
+        GallerySections.Clear();
     }
 
-    private async Task RefreshCenterAsync()
+    private void ClearFolderAlbums()
+    {
+        foreach (var album in FolderAlbums)
+            album.Dispose();
+        FolderAlbums.Clear();
+    }
+
+    private async Task RefreshPhotoTimelineAsync()
     {
         _refreshCts?.Cancel();
         _refreshCts = new CancellationTokenSource();
         var token = _refreshCts.Token;
+        var folderFilter = IsFolderPhotosMode ? OpenFolderPath : null;
 
-        var built = await Task.Run(() => BuildTimelineItems(), token).ConfigureAwait(false);
+        var built = await Task.Run(() => BuildGallerySections(folderFilter), token).ConfigureAwait(false);
         if (token.IsCancellationRequested)
             return;
 
-        await Dispatcher.UIThread.InvokeAsync(async () =>
+        await Dispatcher.UIThread.InvokeAsync(() =>
         {
             if (token.IsCancellationRequested)
                 return;
 
-            foreach (var item in TimelineItems.OfType<PhotoTileViewModel>())
-                item.Dispose();
-            TimelineItems.Clear();
-
-            for (var i = 0; i < built.Count; i += TimelineBatchSize)
-            {
-                if (token.IsCancellationRequested)
-                    return;
-
-                var end = Math.Min(i + TimelineBatchSize, built.Count);
-                for (var j = i; j < end; j++)
-                    TimelineItems.Add(built[j]);
-
-                if (end < built.Count)
-                    await Task.Delay(1);
-            }
+            ClearPhotoTimeline();
+            foreach (var section in built)
+                GallerySections.Add(section);
         });
     }
 
-    private List<TimelineListItemViewModel> BuildTimelineItems()
+    private async Task RefreshFolderAlbumsAsync()
     {
-        var buckets = _index.GetPhotosGroupedByFolder(folderPrefix: null);
+        var built = await Task.Run(BuildFolderAlbums).ConfigureAwait(false);
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            ClearFolderAlbums();
+            foreach (var album in built)
+                FolderAlbums.Add(album);
+        });
+    }
+
+    private List<MonthSectionViewModel> BuildGallerySections(string? folderPath)
+    {
+        var culture = CultureInfo.GetCultureInfo("en-US");
         var query = SearchQuery.Trim();
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var items = new List<TimelineListItemViewModel>(capacity: Math.Min(_index.TotalPhotoCount() + buckets.Count, 100_000));
+        var sections = new List<MonthSectionViewModel>();
+
+        var useMonthHeaders = string.IsNullOrEmpty(folderPath);
+        IEnumerable<DateHierarchyBucket> buckets = useMonthHeaders
+            ? _index.GetPhotosGroupedByDate(null, DateBucketGranularity.Month)
+            : GroupFolderPhotosByDate(folderPath!);
 
         foreach (var bucket in buckets)
         {
-            var groupAdded = false;
+            var title = bucket.Year == 0
+                ? "No capture date"
+                : useMonthHeaders
+                    ? new DateTime(bucket.Year, bucket.Month ?? 1, 1).ToString("MMMM yyyy", culture)
+                    : new DateTime(bucket.Year, bucket.Month ?? 1, bucket.Day ?? 1)
+                        .ToString("MMMM dd, yyyy", culture);
+
+            var groupTiles = new List<PhotoTileViewModel>();
 
             foreach (var photo in bucket.Photos)
             {
@@ -412,33 +578,73 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
                     name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
                     continue;
 
-                if (!groupAdded)
-                {
-                    items.Add(new FolderHeaderTimelineItem(
-                        FormatFolderTitle(bucket.FolderPath),
-                        bucket.FolderPath));
-                    groupAdded = true;
-                }
-
-                items.Add(new PhotoTileViewModel(photo.AbsolutePath, name));
+                groupTiles.Add(new PhotoTileViewModel(photo.AbsolutePath, name));
             }
+
+            if (groupTiles.Count == 0)
+                continue;
+
+            var header = $"{title} ({groupTiles.Count:N0} Photos)";
+            sections.Add(new MonthSectionViewModel(header, groupTiles));
         }
 
-        return items;
+        return sections;
     }
 
-    public int FindTimelineIndexForFolder(string folderPath)
+    private IEnumerable<DateHierarchyBucket> GroupFolderPhotosByDate(string folderPath)
     {
-        folderPath = Path.TrimEndingDirectorySeparator(folderPath);
-        for (var i = 0; i < TimelineItems.Count; i++)
+        var photos = _index.GetInFolder(folderPath, recursive: false);
+        return photos
+            .GroupBy(p =>
+            {
+                if (p.CapturedAt is null)
+                    return (int?)null;
+                var local = p.CapturedAt.Value.ToLocalTime();
+                return local.Year * 10000 + local.Month * 100 + local.Day;
+            })
+            .OrderByDescending(g => g.Key ?? int.MinValue)
+            .Select(g =>
+            {
+                if (g.Key is null)
+                {
+                    return new DateHierarchyBucket(
+                        DateBucketGranularity.Day, 0, null, null,
+                        g.OrderBy(p => p.AbsolutePath, StringComparer.OrdinalIgnoreCase).ToList());
+                }
+
+                var first = g.First();
+                var local = first.CapturedAt!.Value.ToLocalTime();
+                return new DateHierarchyBucket(
+                    DateBucketGranularity.Day,
+                    local.Year,
+                    local.Month,
+                    local.Day,
+                    g.OrderByDescending(p => p.CapturedAt).ThenBy(p => p.AbsolutePath, StringComparer.OrdinalIgnoreCase).ToList());
+            });
+    }
+
+    private List<FolderAlbumViewModel> BuildFolderAlbums()
+    {
+        var query = SearchQuery.Trim();
+        var albums = new List<FolderAlbumViewModel>();
+
+        foreach (var bucket in _index.GetPhotosGroupedByFolder(folderPrefix: null)
+                     .OrderByDescending(b => b.Photos.Max(p => p.CapturedAt))
+                     .ThenBy(b => b.FolderPath, StringComparer.OrdinalIgnoreCase))
         {
-            if (TimelineItems[i] is FolderHeaderTimelineItem header &&
-                (string.Equals(Path.TrimEndingDirectorySeparator(header.FolderPath), folderPath, StringComparison.OrdinalIgnoreCase)
-                 || folderPath.StartsWith(header.FolderPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
-                return i;
+            var title = FormatFolderTitle(bucket.FolderPath);
+            if (!string.IsNullOrEmpty(query) &&
+                title.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
+                continue;
+
+            var cover = bucket.Photos.FirstOrDefault()?.AbsolutePath ?? string.Empty;
+            if (string.IsNullOrEmpty(cover))
+                continue;
+
+            albums.Add(new FolderAlbumViewModel(title, bucket.FolderPath, cover, bucket.Photos.Count));
         }
 
-        return -1;
+        return albums;
     }
 
     private string FormatFolderTitle(string directoryPath)
@@ -470,7 +676,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         _refreshCts?.Cancel();
         _refreshCts?.Dispose();
         ThumbnailQueue.Dispose();
-        foreach (var item in TimelineItems.OfType<PhotoTileViewModel>())
-            item.Dispose();
+        ClearPhotoTimeline();
+        ClearFolderAlbums();
     }
 }

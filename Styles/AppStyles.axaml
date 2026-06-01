@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ctrl="using:Lumen.Controls">
   <Style Selector="Window">
     <Setter Property="Background" Value="#0B1018" />
     <Setter Property="FontFamily" Value="Inter" />
@@ -16,6 +17,208 @@
     <Setter Property="Background" Value="#E610141C" />
     <Setter Property="BorderBrush" Value="#18FFFFFF" />
     <Setter Property="BorderThickness" Value="0,0,1,0" />
+  </Style>
+
+  <Style Selector="Border.sidebar-modern">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+        <GradientStop Color="#121820" Offset="0" />
+        <GradientStop Color="#0D1118" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+    <Setter Property="BorderBrush" Value="#14FFFFFF" />
+    <Setter Property="BorderThickness" Value="0,0,1,0" />
+  </Style>
+
+  <Style Selector="Border.sidebar-header">
+    <Setter Property="BorderBrush" Value="#12FFFFFF" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+
+  <Style Selector="Border.sidebar-footer">
+    <Setter Property="BorderBrush" Value="#12FFFFFF" />
+    <Setter Property="BorderThickness" Value="1,0,0,0" />
+  </Style>
+
+  <Style Selector="Border.brand-mark">
+    <Setter Property="Background">
+      <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="#3B9BFF" Offset="0" />
+        <GradientStop Color="#2F6FD4" Offset="1" />
+      </LinearGradientBrush>
+    </Setter>
+  </Style>
+
+  <Style Selector="TextBlock.sidebar-section-label">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Opacity" Value="0.42" />
+    <Setter Property="LetterSpacing" Value="1.2" />
+  </Style>
+
+  <Style Selector="Button.sidebar-nav">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="Margin" Value="2,1" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Foreground" Value="#B8FFFFFF" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+
+  <Style Selector="Button.sidebar-nav:pointerover">
+    <Setter Property="Background" Value="#14FFFFFF" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <Style Selector="Button.sidebar-nav.active">
+    <Setter Property="Background" Value="#1E2E48" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <Style Selector="Border.toolbar-glass">
+    <Setter Property="Background" Value="#E610141C" />
+    <Setter Property="BorderBrush" Value="#14FFFFFF" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+
+  <Style Selector="Button.toolbar-chip">
+    <Setter Property="Background" Value="#141A24" />
+    <Setter Property="BorderBrush" Value="#1AFFFFFF" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="Foreground" Value="#99FFFFFF" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+
+  <Style Selector="Button.toolbar-chip.active">
+    <Setter Property="Background" Value="#243858" />
+    <Setter Property="BorderBrush" Value="#3B9BFF" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <Style Selector="Border.edit-canvas">
+    <Setter Property="Background" Value="#060910" />
+    <Setter Property="BorderBrush" Value="#18FFFFFF" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="14" />
+  </Style>
+
+  <Style Selector="Border.filmstrip-bar">
+    <Setter Property="Background" Value="#CC0F141C" />
+    <Setter Property="BorderBrush" Value="#14FFFFFF" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+  </Style>
+
+  <Style Selector="Expander.edit-expander">
+    <Setter Property="Background" Value="#121820" />
+    <Setter Property="BorderBrush" Value="#14FFFFFF" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Margin" Value="0,2" />
+    <Setter Property="Padding" Value="10,8" />
+  </Style>
+
+  <Style Selector="Button.sidebar-pill">
+    <Setter Property="Background" Value="#141A24" />
+    <Setter Property="BorderBrush" Value="#1AFFFFFF" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="12,10" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Foreground" Value="#E8FFFFFF" />
+  </Style>
+
+  <Style Selector="Button.sidebar-pill:pointerover">
+    <Setter Property="Background" Value="#1A2230" />
+  </Style>
+
+  <Style Selector="Button.sidebar-pill.all-active">
+    <Setter Property="Background" Value="#1E2E48" />
+    <Setter Property="BorderBrush" Value="#3D7FD6" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <Style Selector="Button.sidebar-action">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Foreground" Value="#99FFFFFF" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+
+  <Style Selector="Button.sidebar-action:pointerover">
+    <Setter Property="Background" Value="#14FFFFFF" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <Style Selector="Border.count-badge">
+    <Setter Property="Background" Value="#1A2433" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="MinWidth" Value="28" />
+  </Style>
+
+  <Style Selector="Border.count-badge TextBlock">
+    <Setter Property="Foreground" Value="#99FFFFFF" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.sidebar-pill.all-active Border.count-badge">
+    <Setter Property="Background" Value="#2F8CFF33" />
+  </Style>
+
+  <Style Selector="Button.sidebar-pill.all-active Border.count-badge TextBlock">
+    <Setter Property="Foreground" Value="#B8D4FF" />
+  </Style>
+
+  <Style Selector="ctrl|LazyThumbnailHost.selected">
+    <Setter Property="BorderBrush" Value="#3B9BFF" />
+    <Setter Property="BorderThickness" Value="3" />
+  </Style>
+
+  <Style Selector="ListBox.sidebar-folder-list">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <Style Selector="ListBox.sidebar-folder-list ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0,2" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="CornerRadius" Value="10" />
+  </Style>
+
+  <Style Selector="ListBox.sidebar-folder-list ListBoxItem:pointerover Border.folder-row">
+    <Setter Property="Background" Value="#14FFFFFF" />
+  </Style>
+
+  <Style Selector="ListBox.sidebar-folder-list ListBoxItem:selected">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="ListBox.sidebar-folder-list ListBoxItem:selected Border.folder-row">
+    <Setter Property="Background" Value="#1A2A42" />
+    <Setter Property="BorderBrush" Value="#3D7FD6" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="ListBox.sidebar-folder-list ListBoxItem:selected Border.folder-icon-badge">
+    <Setter Property="Background" Value="#2F8CFF28" />
+  </Style>
+
+  <Style Selector="Border.folder-icon-badge">
+    <Setter Property="Background" Value="#161D28" />
   </Style>
 
   <Style Selector="Button.nav-item">

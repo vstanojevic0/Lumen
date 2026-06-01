@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Lumen.Services.Imaging;
 using Lumen.ViewModels;
 
@@ -24,7 +25,7 @@ public class LazyThumbnailHost : Border
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        Queue ??= (TopLevel.GetTopLevel(this)?.DataContext as MainWindowViewModel)?.ThumbnailQueue;
+        Queue ??= FindMainViewModel(this)?.ThumbnailQueue;
         if (DataContext is PhotoTileViewModel tile && Queue is not null)
             Queue.Request(tile);
     }
@@ -34,5 +35,16 @@ public class LazyThumbnailHost : Border
         if (DataContext is PhotoTileViewModel tile && Queue is not null)
             Queue.Release(tile);
         base.OnDetachedFromVisualTree(e);
+    }
+
+    private static MainWindowViewModel? FindMainViewModel(Visual start)
+    {
+        for (var node = start; node is not null; node = node.GetVisualParent())
+        {
+            if (node is StyledElement { DataContext: MainWindowViewModel vm })
+                return vm;
+        }
+
+        return TopLevel.GetTopLevel(start)?.DataContext as MainWindowViewModel;
     }
 }

@@ -12,9 +12,19 @@ Desktop photo library for Windows and macOS (Avalonia + .NET 10). Browse photos 
 dotnet run
 ```
 
+## Web UI prototype (React)
+
+Interactive editor mock with live slider preview, presets, crop overlay, and filmstrip:
+
+```bash
+cd web && npm install && npm run dev
+```
+
+See [web/README.md](web/README.md).
+
 ## Windows download (pre-built)
 
-**[Download Lumen-win-x64.zip (v0.1.0)](https://github.com/vstanojevic0/Lumen/releases/latest)** — unzip and run `Lumen.exe`.
+**[Download Lumen-win-x64.zip (latest release)](https://github.com/vstanojevic0/Lumen/releases/latest)** — unzip and run `Lumen.exe`.
 
 ## Windows build (portable folder)
 
