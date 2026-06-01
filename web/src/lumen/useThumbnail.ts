@@ -1,64 +1,12 @@
-import { useEffect, useState } from "react";
-import { isLumenHost, lumenCall } from "./hostBridge";
+import { getMediaBase, mediaPreviewUrl, mediaThumbUrl } from "./mediaUrls";
 
+/** Direct loopback URL — no base64 bridge (low RAM). */
 export function useThumbnail(path: string | undefined, enabled = true): string {
-  const [src, setSrc] = useState("");
-
-  useEffect(() => {
-    if (!enabled || !path) {
-      setSrc("");
-      return;
-    }
-
-    if (!isLumenHost()) {
-      setSrc("");
-      return;
-    }
-
-    let cancelled = false;
-    void lumenCall<{ dataUrl: string }>("getThumbnail", { path })
-      .then((r) => {
-        if (!cancelled) setSrc(r.dataUrl);
-      })
-      .catch(() => {
-        if (!cancelled) setSrc("");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [path, enabled]);
-
-  return src;
+  if (!enabled || !path || !getMediaBase()) return "";
+  return mediaThumbUrl(path);
 }
 
 export function usePreview(path: string | undefined, enabled = true): string {
-  const [src, setSrc] = useState("");
-
-  useEffect(() => {
-    if (!enabled || !path) {
-      setSrc("");
-      return;
-    }
-
-    if (!isLumenHost()) {
-      setSrc("");
-      return;
-    }
-
-    let cancelled = false;
-    void lumenCall<{ dataUrl: string }>("getPreview", { path })
-      .then((r) => {
-        if (!cancelled) setSrc(r.dataUrl);
-      })
-      .catch(() => {
-        if (!cancelled) setSrc("");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [path, enabled]);
-
-  return src;
+  if (!enabled || !path || !getMediaBase()) return "";
+  return mediaPreviewUrl(path);
 }

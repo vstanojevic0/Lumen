@@ -1,12 +1,13 @@
+import { useEffect, useState } from "react";
 import { Copy, Flag, Star } from "lucide-react";
 import { buildPreviewStyle } from "../lib/filters";
-import { usePreview } from "../lumen/useThumbnail";
+import { getMediaBase, mediaPreviewUrl } from "../lumen/mediaUrls";
 import type { AspectRatio, EditState, PhotoItem } from "../types";
 import { Filmstrip } from "./Filmstrip";
 
 interface EditingCanvasProps {
   photo: PhotoItem;
-  photos: PhotoItem[];
+  filmstripPhotos: PhotoItem[];
   edits: EditState;
   zoom: number;
   onSelectPhoto: (id: string) => void;
@@ -30,7 +31,7 @@ function aspectClass(ratio: AspectRatio): string {
 
 export function EditingCanvas({
   photo,
-  photos,
+  filmstripPhotos,
   edits,
   zoom,
   onSelectPhoto,
@@ -40,9 +41,15 @@ export function EditingCanvas({
 }: EditingCanvasProps) {
   const { imageStyle, warmOverlay, coolOverlay, tintOverlay } = buildPreviewStyle(edits);
   const scale = zoom / 100;
-  const hostPreview = usePreview(photo.path, Boolean(photo.path));
-  const displaySrc = photo.path ? hostPreview || photo.src : photo.src;
-  const isLoading = Boolean(photo.path) && !displaySrc;
+  const displaySrc =
+    photo.path && getMediaBase() ? mediaPreviewUrl(photo.path) : photo.src;
+  const [previewReady, setPreviewReady] = useState(false);
+
+  useEffect(() => {
+    setPreviewReady(false);
+  }, [photo.path]);
+
+  const isLoading = Boolean(displaySrc) && !previewReady;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#060910]">
@@ -71,6 +78,9 @@ export function EditingCanvas({
                   className="block max-h-[min(72vh,720px)] max-w-full object-contain"
                   style={imageStyle}
                   draggable={false}
+                  decoding="async"
+                  onLoad={() => setPreviewReady(true)}
+                  onError={() => setPreviewReady(false)}
                 />
               )}
               {!isLoading ? (
@@ -133,7 +143,11 @@ export function EditingCanvas({
         </div>
       </div>
 
-      <Filmstrip photos={photos} selectedId={photo.id} onSelect={onSelectPhoto} />
+      <Filmstrip
+        photos={filmstripPhotos}
+        selectedId={photo.id}
+        onSelect={onSelectPhoto}
+      />
     </div>
   );
 }

@@ -38,7 +38,7 @@ export interface GalleryQuery {
 }
 
 export interface WebImageDto {
-  dataUrl: string;
+  url: string;
 }
 
 type LumenHost = {
@@ -49,6 +49,7 @@ type LumenHost = {
 declare global {
   interface Window {
     __lumenHost?: LumenHost;
+    __lumenMediaBase?: string;
   }
 }
 

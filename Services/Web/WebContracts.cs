@@ -20,4 +20,4 @@ public sealed record WebFolderDto(
 
 public sealed record WebGalleryRequest(string? FolderPath, bool FavoritesOnly);
 
-public sealed record WebImageDto(string DataUrl);
+public sealed record WebImageDto(string Url);

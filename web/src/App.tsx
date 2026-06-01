@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { filmstripWindow } from "./lumen/mediaUrls";
 import { EditingCanvas } from "./components/EditingCanvas";
 import { HostPhotoImage } from "./components/HostPhotoImage";
 import { RightEditPanel } from "./components/RightEditPanel";
@@ -41,6 +42,11 @@ export default function App() {
 
   const photo =
     photos.find((p) => p.id === selectedId) ?? photos[0] ?? null;
+
+  const filmstripPhotos = useMemo(
+    () => (photo ? filmstripWindow(photos, photo.id) : []),
+    [photos, photo],
+  );
 
   const applyPreset = useCallback(
     (id: PresetId) => {
@@ -183,7 +189,7 @@ export default function App() {
             />
             <EditingCanvas
               photo={photo}
-              photos={photos}
+              filmstripPhotos={filmstripPhotos}
               edits={edits}
               zoom={zoom}
               onSelectPhoto={setSelectedId}

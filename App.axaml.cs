@@ -11,7 +11,7 @@ namespace Lumen;
 
 public partial class App : Application
 {
-    private LumenEmbeddedWebServer? _embeddedWeb;
+    private LumenEmbeddedWebServer? _loopbackServer;
 
     public override void Initialize()
     {
@@ -22,15 +22,22 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            var media = new WebMediaHandler();
+            _loopbackServer = LumenEmbeddedWebServer.TryStart(media);
+            WebUiSource.MediaBaseUri = _loopbackServer?.BaseUri;
+
 #if !DEBUG
-            _embeddedWeb = LumenEmbeddedWebServer.TryStart();
-            WebUiSource.EmbeddedBaseUri = _embeddedWeb?.BaseUri;
+            if (WebUiSource.HasBundledUi)
+                WebUiSource.EmbeddedBaseUri = _loopbackServer?.BaseUri;
+#endif
+
             desktop.Exit += (_, _) =>
             {
-                _embeddedWeb?.Dispose();
-                _embeddedWeb = null;
+                _loopbackServer?.Dispose();
+                _loopbackServer = null;
+                WebUiSource.MediaBaseUri = null;
+                WebUiSource.EmbeddedBaseUri = null;
             };
-#endif
 
             var settingsStore = new JsonAppSettingsStore();
             var scanner = new FileSystemPhotoScanner();

@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalonia.Controls;
-using Lumen.Services.Imaging;
 using Lumen.ViewModels;
 
 namespace Lumen.Services.Web;
@@ -105,8 +104,8 @@ public sealed class LumenWebBridge
             "getStatus" => vm.GetWebStatus(),
             "getFolders" => vm.GetWebFolderTree(),
             "getGallery" => GetGallery(vm, parameters),
-            "getThumbnail" => EncodeImage(parameters, maxEdge: 280),
-            "getPreview" => EncodeImage(parameters, maxEdge: 1400),
+            "getThumbnail" => ImageUrlResponse(parameters, preview: false),
+            "getPreview" => ImageUrlResponse(parameters, preview: true),
             "setFavorite" => SetFavorite(vm, parameters),
             "rescan" => await RescanAsync(vm).ConfigureAwait(true),
             "addFolder" => await AddFolderAsync(vm).ConfigureAwait(true),
@@ -168,7 +167,7 @@ public sealed class LumenWebBridge
         return new { ok = true, favorite };
     }
 
-    private static WebImageDto EncodeImage(JsonElement? parameters, int maxEdge)
+    private static object ImageUrlResponse(JsonElement? parameters, bool preview)
     {
         if (parameters is not { } el || !el.TryGetProperty("path", out var pathProp))
             throw new ArgumentException("path is required");
@@ -177,11 +176,11 @@ public sealed class LumenWebBridge
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("path is required");
 
-        var bytes = ImageLoader.TryEncodeThumbnailBytes(path, maxEdge)
-                    ?? throw new FileNotFoundException("Could not decode image.", path);
+        var url = preview ? WebUiSource.PreviewUrl(path) : WebUiSource.ThumbUrl(path);
+        if (url is null)
+            throw new InvalidOperationException("Media server is not running.");
 
-        var b64 = Convert.ToBase64String(bytes);
-        return new WebImageDto($"data:image/png;base64,{b64}");
+        return new WebImageDto(url);
     }
 
     private async Task InjectHostScriptAsync()
@@ -222,6 +221,13 @@ public sealed class LumenWebBridge
             """;
 
         await _webView.InvokeScript(script).ConfigureAwait(true);
+
+        var mediaBase = WebUiSource.MediaBaseUri?.ToString().TrimEnd('/');
+        if (!string.IsNullOrEmpty(mediaBase))
+        {
+            var json = JsonSerializer.Serialize(mediaBase, JsonOptions);
+            await _webView.InvokeScript($"window.__lumenMediaBase = {json}").ConfigureAwait(true);
+        }
     }
 
     private async Task SendResponseAsync(string id, object? result, string? error)
