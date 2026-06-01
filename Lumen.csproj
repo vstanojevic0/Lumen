@@ -6,9 +6,9 @@
     <Nullable>enable</Nullable>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <Version>0.2.1</Version>
-    <AssemblyVersion>0.2.1.0</AssemblyVersion>
-    <FileVersion>0.2.1.0</FileVersion>
+    <Version>0.3.0</Version>
+    <AssemblyVersion>0.3.0.0</AssemblyVersion>
+    <FileVersion>0.3.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,12 +25,35 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="web\dist\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="wwwroot" Visible="false" Condition="Exists('web\dist\index.html')" />
-  </ItemGroup>
+  <!-- Build React UI and include wwwroot in output/publish -->
+  <Target Name="BuildWebUi" BeforeTargets="Build" Condition="Exists('$(MSBuildProjectDirectory)\web\package.json')">
+    <Message Importance="high" Text="Building Lumen web UI (npm run build)..." />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)\web" Command="npm ci" Condition="!Exists('$(MSBuildProjectDirectory)\web\node_modules')" />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)\web" Command="npm run build" />
+  </Target>
 
-  <Target Name="BuildWebUi" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)' == 'Release' AND Exists('web/package.json') AND !Exists('web/dist/index.html')">
-    <Exec WorkingDirectory="web" Command="npm ci" IgnoreExitCode="true" />
-    <Exec WorkingDirectory="web" Command="npm run build" />
+  <Target Name="CopyWebDistToOutput" AfterTargets="Build" DependsOnTargets="BuildWebUi">
+    <ItemGroup>
+      <_WebDistFile Include="$(MSBuildProjectDirectory)\web\dist\**\*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_WebDistFile)"
+      DestinationFiles="@(_WebDistFile->'$(OutputPath)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyWebDistToPublishDir" AfterTargets="Publish" DependsOnTargets="BuildWebUi">
+    <PropertyGroup>
+      <_PublishDestination Condition="'$(PublishDir)' != ''">$(PublishDir)</_PublishDestination>
+      <_PublishDestination Condition="'$(_PublishDestination)' == '' and '$(PublishPath)' != ''">$(PublishPath)</_PublishDestination>
+    </PropertyGroup>
+    <ItemGroup>
+      <_WebDistPublish Include="$(MSBuildProjectDirectory)\web\dist\**\*" />
+    </ItemGroup>
+    <Copy
+      Condition="'$(_PublishDestination)' != ''"
+      SourceFiles="@(_WebDistPublish)"
+      DestinationFiles="@(_WebDistPublish->'$(_PublishDestination)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
   </Target>
 </Project>

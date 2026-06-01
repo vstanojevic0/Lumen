@@ -4,12 +4,15 @@ using Avalonia.Markup.Xaml;
 using Lumen.Services.Catalog;
 using Lumen.Services.Scanning;
 using Lumen.Services.Settings;
+using Lumen.Services.Web;
 using Lumen.ViewModels;
 
 namespace Lumen;
 
 public partial class App : Application
 {
+    private LumenEmbeddedWebServer? _embeddedWeb;
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -19,6 +22,16 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+#if !DEBUG
+            _embeddedWeb = LumenEmbeddedWebServer.TryStart();
+            WebUiSource.EmbeddedBaseUri = _embeddedWeb?.BaseUri;
+            desktop.Exit += (_, _) =>
+            {
+                _embeddedWeb?.Dispose();
+                _embeddedWeb = null;
+            };
+#endif
+
             var settingsStore = new JsonAppSettingsStore();
             var scanner = new FileSystemPhotoScanner();
             var index = new InMemoryLibraryIndex();

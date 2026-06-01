@@ -1,50 +1,49 @@
 # Lumen — Web UI u desktop aplikaciji
 
-Desktop aplikacija podrazumevano učitava React UI iz `web/` preko **NativeWebView**, dok skeniranje, indeks i dekodiranje slika ostaju u **.NET**-u.
+## Windows (samo pokreni .exe)
 
-## Pokretanje (razvoj)
+1. Preuzmi **[Lumen-win-x64.zip](https://github.com/vstanojevic0/Lumen/releases/latest)** (ili build lokalno, vidi ispod).
+2. Raspakuj ceo folder `Lumen-win-x64`.
+3. Pokreni **`Lumen.exe`**.
 
-U **dva terminala**:
+Ni Node, ni Vite, ni `dotnet run` — UI je ubačen u folder (`wwwroot` pored exe).
+
+Potrebno na Windowsu: **WebView2** (uglavnom već na Win 11; na Win 10 [runtime](https://developer.microsoft.com/microsoft-edge/webview2/) ako se prozor ne otvori).
+
+## Razvoj (macOS / dev)
+
+Dva terminala:
 
 ```bash
-# Terminal 1 — Vite dev server (hot reload)
-cd web && npm install && npm run dev
+cd web && npm run dev
 ```
 
 ```bash
-# Terminal 2 — Avalonia host
-cd /Users/v/Lumen && dotnet run
+dotnet run
 ```
 
-Aplikacija otvara `http://localhost:5173` u WebView-u.
+Debug koristi `http://localhost:5173`. Release koristi ugrađeni loopback server + `wwwroot`.
+
+## Build Windows paketa
+
+**Na Windowsu (PowerShell):**
+
+```powershell
+.\scripts\publish-windows.ps1
+```
+
+**Sa Mac/Linux (cross-publish):**
+
+```bash
+./scripts/publish-windows.sh
+```
+
+Zahteva **Node.js** i **.NET 10 SDK** samo na mašini koja **build-uje**, ne na PC gde koristiš app.
+
+Izlaz: `artifacts/Lumen-win-x64/Lumen.exe` + `wwwroot/` + `artifacts/Lumen-win-x64.zip`
 
 ## Klasični Avalonia UI
 
 ```bash
 dotnet run -- --classic-ui
-# ili
-LUMEN_CLASSIC_UI=1 dotnet run
 ```
-
-## Release build
-
-```bash
-cd web && npm run build
-dotnet publish -c Release -r win-x64 --self-contained -o artifacts/Lumen-win-x64
-```
-
-`web/dist` se kopira u `wwwroot/` pored `.exe`.
-
-## Bridge API (JS → C#)
-
-| Metoda | Opis |
-|--------|------|
-| `ping` | Provera veze |
-| `getStatus` | Broj fotografija, status tekst |
-| `getGallery` | Sekcije po mesecima + putanje |
-| `getThumbnail` | `{ path }` → PNG data URL |
-| `getPreview` | Veći preview za edit |
-| `rescan` | Ponovo skenira biblioteku |
-| `addFolder` | Dijalog za dodavanje foldera |
-
-Događaji: `lumen:status`, `lumen:libraryUpdated`.

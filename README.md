@@ -6,25 +6,22 @@ Desktop photo library for Windows and macOS (Avalonia + .NET 10). Browse photos 
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 
-## Run locally
+## Run locally (development)
+
+Web UI (default) — needs Vite dev server:
 
 ```bash
-dotnet run
+cd web && npm install && npm run dev   # terminal 1
+dotnet run                              # terminal 2
 ```
 
-## Web UI prototype (React)
+Classic Avalonia-only UI: `dotnet run -- --classic-ui`
 
-Interactive editor mock with live slider preview, presets, crop overlay, and filmstrip:
-
-```bash
-cd web && npm install && npm run dev
-```
-
-See [web/README.md](web/README.md).
+See [README-WEB-UI.md](README-WEB-UI.md) and [web/README.md](web/README.md).
 
 ## Windows download (pre-built)
 
-**[Download Lumen-win-x64.zip (latest)](https://github.com/vstanojevic0/Lumen/releases/latest)** — unzip and run `Lumen-win-x64/Lumen.exe`.
+**[Download Lumen-win-x64.zip (latest)](https://github.com/vstanojevic0/Lumen/releases/latest)** — unzip the folder and double-click **`Lumen.exe`**. No Node.js or extra setup.
 
 ## Windows build (portable folder)
 
