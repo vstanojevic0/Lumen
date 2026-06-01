@@ -183,28 +183,17 @@ public partial class MainWindow : Window
 
     private void ScrollToFolderInTimeline(string folderPath)
     {
-        if (LibraryScroll is null || DataContext is not MainWindowViewModel vm)
+        if (TimelineList is null || DataContext is not MainWindowViewModel vm)
             return;
 
-        var normalized = Path.TrimEndingDirectorySeparator(folderPath);
-        var target = vm.FolderGroups.FirstOrDefault(g =>
-            string.Equals(Path.TrimEndingDirectorySeparator(g.FolderPath), normalized, StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith(Path.TrimEndingDirectorySeparator(g.FolderPath) + Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase));
-
-        if (target is null)
+        var index = vm.FindTimelineIndexForFolder(folderPath);
+        if (index < 0 || index >= vm.TimelineItems.Count)
             return;
 
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            var container = LibraryScroll.GetVisualDescendants()
-                .OfType<StackPanel>()
-                .FirstOrDefault(p => p.Tag is string tag &&
-                    string.Equals(Path.TrimEndingDirectorySeparator(tag),
-                        Path.TrimEndingDirectorySeparator(target.FolderPath),
-                        StringComparison.OrdinalIgnoreCase));
-
-            container?.BringIntoView();
+            TimelineList.SelectedIndex = index;
+            TimelineList.ScrollIntoView(vm.TimelineItems[index]);
         }, Avalonia.Threading.DispatcherPriority.Loaded);
     }
 

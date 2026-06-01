@@ -86,48 +86,60 @@
         </Grid>
       </Border>
 
-      <!-- Library timeline (all folders, one scrollable feed) -->
-      <ScrollViewer x:Name="LibraryScroll" Grid.Row="1" Padding="20,16" IsVisible="{Binding !IsEditMode}">
-        <ItemsControl ItemsSource="{Binding FolderGroups}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:FolderGroupViewModel">
-              <StackPanel Margin="0,0,0,28" Tag="{Binding FolderPath}">
-                <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" />
-                <ItemsControl ItemsSource="{Binding Tiles}">
-                  <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                      <WrapPanel />
-                    </ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PhotoTileViewModel">
-                      <Border Width="168"
-                              Height="168"
-                              Margin="6"
-                              CornerRadius="12"
-                              ClipToBounds="True"
-                              Background="#141A22"
-                              BorderBrush="#22FFFFFF"
-                              BorderThickness="1"
-                              Tapped="PhotoTile_OnTapped">
-                        <Grid RowDefinitions="*,Auto">
-                          <Image Source="{Binding Thumbnail, Mode=OneWay}"
-                                 Stretch="UniformToFill"
-                                 x:CompileBindings="False" />
-                          <Border Grid.Row="1" Padding="8,5" Background="#99000000">
-                            <TextBlock Text="{Binding Caption}" Foreground="White" FontSize="11"
-                                       TextTrimming="CharacterEllipsis" />
-                          </Border>
-                        </Grid>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </ScrollViewer>
+      <!-- Library timeline: virtualized list (safe for 70k+ photos) -->
+      <ListBox x:Name="TimelineList"
+               Grid.Row="1"
+               ItemsSource="{Binding TimelineItems}"
+               Padding="20,16"
+               IsVisible="{Binding !IsEditMode}"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+        <ListBox.Styles>
+          <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+          </Style>
+        </ListBox.Styles>
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.DataTemplates>
+          <DataTemplate DataType="vm:FolderHeaderTimelineItem">
+            <TextBlock Text="{Binding Title}"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Margin="6,20,6,8"
+                       Tag="{Binding FolderPath}" />
+          </DataTemplate>
+          <DataTemplate DataType="vm:PhotoTileViewModel">
+            <ctrl:LazyThumbnailHost Width="168"
+                                    Height="180"
+                                    Margin="6,4"
+                                    CornerRadius="12"
+                                    ClipToBounds="True"
+                                    Background="#141A22"
+                                    BorderBrush="#22FFFFFF"
+                                    BorderThickness="1"
+                                    Tapped="PhotoTile_OnTapped">
+              <Grid RowDefinitions="*,Auto">
+                <Image Source="{Binding Thumbnail, Mode=OneWay}"
+                       Stretch="UniformToFill"
+                       Height="148"
+                       x:CompileBindings="False" />
+                <Border Grid.Row="1" Padding="8,5" Background="#99000000">
+                  <TextBlock Text="{Binding Caption}"
+                             Foreground="White"
+                             FontSize="11"
+                             TextTrimming="CharacterEllipsis" />
+                </Border>
+              </Grid>
+            </ctrl:LazyThumbnailHost>
+          </DataTemplate>
+        </ListBox.DataTemplates>
+      </ListBox>
 
       <!-- Edit workspace -->
       <Grid Grid.Row="1" RowDefinitions="*,Auto,Auto" IsVisible="{Binding IsEditMode}">
@@ -163,29 +175,37 @@
         </Border>
 
         <Border Grid.Row="1" Padding="12,8" Margin="16,0">
-          <TextBlock Text="{Binding EditSession.FileName}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+          <StackPanel Spacing="2">
+            <TextBlock Text="{Binding EditSession.FileName}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding EditSession.FilmstripPosition}" FontSize="11" Opacity="0.55" HorizontalAlignment="Center" />
+          </StackPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
-                      Margin="16,0,16,12">
-          <ItemsControl ItemsSource="{Binding EditSession.Filmstrip}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Orientation="Horizontal" Spacing="8" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:PhotoTileViewModel">
-                <Border Width="88" Height="66" CornerRadius="8" ClipToBounds="True"
-                        Classes="filmstrip-item"
-                        Classes.selected="{Binding IsSelected}"
-                        Tapped="Filmstrip_OnTapped">
-                  <Image Source="{Binding Thumbnail, Mode=OneWay}" Stretch="UniformToFill" x:CompileBindings="False" />
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ScrollViewer>
+        <ListBox Grid.Row="2"
+                 ItemsSource="{Binding EditSession.Filmstrip}"
+                 Margin="16,0,16,12"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                 ScrollViewer.VerticalScrollBarVisibility="Disabled">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <VirtualizingStackPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:PhotoTileViewModel">
+              <ctrl:LazyThumbnailHost Width="88"
+                                      Height="66"
+                                      Margin="4,0"
+                                      CornerRadius="8"
+                                      ClipToBounds="True"
+                                      Classes="filmstrip-item"
+                                      Classes.selected="{Binding IsSelected}"
+                                      Tapped="Filmstrip_OnTapped">
+                <Image Source="{Binding Thumbnail, Mode=OneWay}" Stretch="UniformToFill" x:CompileBindings="False" />
+              </ctrl:LazyThumbnailHost>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
       </Grid>
 
       <Border Grid.Row="1" VerticalAlignment="Bottom" Padding="16,8" Background="#CC0B1018"

@@ -17,6 +17,8 @@ public interface ILibraryIndex
 
     IReadOnlyList<FolderHierarchyBucket> GetPhotosGroupedByFolder(string? folderPrefix = null);
 
+    IReadOnlyList<string> GetOrderedPhotoPaths(string? folderPrefix = null);
+
     PhotoEntry? GetByPath(string absolutePath);
 
     IReadOnlyList<PhotoEntry> GetInFolder(string absoluteFolderPath, bool recursive);

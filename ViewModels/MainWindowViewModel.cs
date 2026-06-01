@@ -2,24 +2,28 @@ using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Lumen.Core.Abstractions;
 using Lumen.Core.Models;
 using Lumen.Services.Catalog;
+using Lumen.Services.Imaging;
 using Lumen.Services.Library;
 using Lumen.Services.Scanning;
 using Lumen.Services.Settings;
 
 namespace Lumen.ViewModels;
 
-public partial class MainWindowViewModel : ObservableObject
+public partial class MainWindowViewModel : ObservableObject, IDisposable
 {
+    private const int TimelineBatchSize = 500;
+
     private readonly ILibraryScanner _scanner;
     private readonly InMemoryLibraryIndex _index;
     private readonly IAppSettingsStore _store;
     private TopLevel? _topLevel;
-    private readonly SemaphoreSlim _thumbGate = new(6, 6);
+    private CancellationTokenSource? _refreshCts;
 
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusText = "Preparing library…";
@@ -31,9 +35,10 @@ public partial class MainWindowViewModel : ObservableObject
 
     private bool _applyingScanResults;
 
+    public ThumbnailLoadQueue ThumbnailQueue { get; } = new();
     public EditSessionViewModel EditSession { get; } = new();
     public ObservableCollection<FolderTreeNodeViewModel> RootFolders { get; } = new();
-    public ObservableCollection<FolderGroupViewModel> FolderGroups { get; } = new();
+    public ObservableCollection<TimelineListItemViewModel> TimelineItems { get; } = new();
 
     public MainWindowViewModel(ILibraryScanner scanner, InMemoryLibraryIndex index, IAppSettingsStore store)
     {
@@ -143,9 +148,12 @@ public partial class MainWindowViewModel : ObservableObject
             return;
 
         IsEditMode = true;
-        EditSession.SetFilmstrip(GetTimelineTiles(), tile);
+        var paths = _index.GetOrderedPhotoPaths(folderPrefix: null);
+        EditSession.SetFilmstripPaths(paths, tile.AbsolutePath);
         await EditSession.LoadPhotoAsync(tile.AbsolutePath, tile.Caption).ConfigureAwait(true);
-        StatusText = tile.Caption;
+        StatusText = EditSession.FilmstripPosition.Length > 0
+            ? $"{EditSession.FilmstripPosition} — {tile.Caption}"
+            : tile.Caption;
     }
 
     [RelayCommand]
@@ -156,24 +164,16 @@ public partial class MainWindowViewModel : ObservableObject
 
     public void NavigateEditPhoto(int delta)
     {
-        if (!IsEditMode || EditSession.Filmstrip.Count == 0)
+        if (!IsEditMode || !EditSession.TryNavigateFilmstrip(delta))
             return;
 
-        var current = EditSession.GetFilmstripIndex() ?? 0;
-        var next = current + delta;
-        if (!EditSession.TrySelectFilmstripIndex(next))
-            return;
-
-        var tile = EditSession.Filmstrip[next];
-        StatusText = $"{next + 1} / {EditSession.Filmstrip.Count} — {tile.Caption}";
+        StatusText = $"{EditSession.FilmstripPosition} — {EditSession.FileName}";
     }
 
     public void SelectFilmstripTile(PhotoTileViewModel tile)
     {
-        foreach (var item in EditSession.Filmstrip)
-            item.IsSelected = ReferenceEquals(item, tile);
-
-        EditSession.SelectedFilmstripItem = tile;
+        if (EditSession.SelectByPath(tile.AbsolutePath))
+            StatusText = $"{EditSession.FilmstripPosition} — {tile.Caption}";
     }
 
     [RelayCommand]
@@ -298,13 +298,13 @@ public partial class MainWindowViewModel : ObservableObject
         try
         {
             _index.ScanRoots = roots;
-            var progress = new Progress<int>(n => StatusText = $"Scanning… {n} files");
+            var progress = new Progress<int>(n => StatusText = $"Scanning… {n:N0} files");
 
             await _index.RebuildAsync(
                 _scanner.ScanAsync(roots, progress),
-                CancellationToken.None).ConfigureAwait(true);
+                CancellationToken.None).ConfigureAwait(false);
 
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(RebuildFolderTree);
+            await Dispatcher.UIThread.InvokeAsync(RebuildFolderTree);
 
             _applyingScanResults = true;
             try
@@ -318,12 +318,12 @@ public partial class MainWindowViewModel : ObservableObject
             }
 
             TotalPhotoCount = _index.TotalPhotoCount();
-            StatusText = $"Indexed {TotalPhotoCount} photos.";
+            StatusText = $"Indexed {TotalPhotoCount:N0} photos.";
         }
         catch (Exception ex) when (FileSystemPhotoScanner.IsBenignAccessFailure(ex))
         {
             TotalPhotoCount = _index.TotalPhotoCount();
-            StatusText = $"Indexed {TotalPhotoCount} photos (some folders skipped).";
+            StatusText = $"Indexed {TotalPhotoCount:N0} photos (some folders skipped).";
         }
         catch (Exception ex)
         {
@@ -342,27 +342,65 @@ public partial class MainWindowViewModel : ObservableObject
             RootFolders.Add(new FolderTreeNodeViewModel(node));
     }
 
-    public IReadOnlyList<PhotoTileViewModel> GetTimelineTiles() =>
-        FolderGroups.SelectMany(g => g.Tiles).ToList();
-
     private void ClearCenter()
     {
-        foreach (var g in FolderGroups)
-            g.Dispose();
-        FolderGroups.Clear();
+        _refreshCts?.Cancel();
+        foreach (var item in TimelineItems)
+        {
+            if (item is PhotoTileViewModel tile)
+                ThumbnailQueue.Cancel(tile);
+        }
+
+        foreach (var item in TimelineItems.OfType<PhotoTileViewModel>())
+            item.Dispose();
+
+        TimelineItems.Clear();
     }
 
     private async Task RefreshCenterAsync()
     {
-        ClearCenter();
+        _refreshCts?.Cancel();
+        _refreshCts = new CancellationTokenSource();
+        var token = _refreshCts.Token;
 
+        var built = await Task.Run(() => BuildTimelineItems(), token).ConfigureAwait(false);
+        if (token.IsCancellationRequested)
+            return;
+
+        await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            if (token.IsCancellationRequested)
+                return;
+
+            foreach (var item in TimelineItems.OfType<PhotoTileViewModel>())
+                item.Dispose();
+            TimelineItems.Clear();
+
+            for (var i = 0; i < built.Count; i += TimelineBatchSize)
+            {
+                if (token.IsCancellationRequested)
+                    return;
+
+                var end = Math.Min(i + TimelineBatchSize, built.Count);
+                for (var j = i; j < end; j++)
+                    TimelineItems.Add(built[j]);
+
+                if (end < built.Count)
+                    await Task.Delay(1);
+            }
+        });
+    }
+
+    private List<TimelineListItemViewModel> BuildTimelineItems()
+    {
         var buckets = _index.GetPhotosGroupedByFolder(folderPrefix: null);
         var query = SearchQuery.Trim();
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var items = new List<TimelineListItemViewModel>(capacity: Math.Min(_index.TotalPhotoCount() + buckets.Count, 100_000));
 
         foreach (var bucket in buckets)
         {
-            var group = new FolderGroupViewModel(FormatFolderTitle(bucket.FolderPath), bucket.FolderPath);
+            var groupAdded = false;
 
             foreach (var photo in bucket.Photos)
             {
@@ -374,16 +412,33 @@ public partial class MainWindowViewModel : ObservableObject
                     name.IndexOf(query, StringComparison.OrdinalIgnoreCase) < 0)
                     continue;
 
-                group.Tiles.Add(new PhotoTileViewModel(photo.AbsolutePath, name));
+                if (!groupAdded)
+                {
+                    items.Add(new FolderHeaderTimelineItem(
+                        FormatFolderTitle(bucket.FolderPath),
+                        bucket.FolderPath));
+                    groupAdded = true;
+                }
+
+                items.Add(new PhotoTileViewModel(photo.AbsolutePath, name));
             }
-
-            if (group.Tiles.Count == 0)
-                continue;
-
-            FolderGroups.Add(group);
         }
 
-        await LoadVisibleThumbnailsAsync().ConfigureAwait(true);
+        return items;
+    }
+
+    public int FindTimelineIndexForFolder(string folderPath)
+    {
+        folderPath = Path.TrimEndingDirectorySeparator(folderPath);
+        for (var i = 0; i < TimelineItems.Count; i++)
+        {
+            if (TimelineItems[i] is FolderHeaderTimelineItem header &&
+                (string.Equals(Path.TrimEndingDirectorySeparator(header.FolderPath), folderPath, StringComparison.OrdinalIgnoreCase)
+                 || folderPath.StartsWith(header.FolderPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
+                return i;
+        }
+
+        return -1;
     }
 
     private string FormatFolderTitle(string directoryPath)
@@ -410,22 +465,12 @@ public partial class MainWindowViewModel : ObservableObject
         return directoryPath;
     }
 
-    private async Task LoadVisibleThumbnailsAsync()
+    public void Dispose()
     {
-        var tiles = GetTimelineTiles();
-        var token = CancellationToken.None;
-
-        await Task.WhenAll(tiles.Select(async tile =>
-        {
-            await _thumbGate.WaitAsync(token).ConfigureAwait(false);
-            try
-            {
-                await tile.LoadThumbnailAsync(token).ConfigureAwait(false);
-            }
-            finally
-            {
-                _thumbGate.Release();
-            }
-        })).ConfigureAwait(true);
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+        ThumbnailQueue.Dispose();
+        foreach (var item in TimelineItems.OfType<PhotoTileViewModel>())
+            item.Dispose();
     }
 }

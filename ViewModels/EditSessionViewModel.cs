@@ -79,17 +79,30 @@ public partial class EditSessionViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CropHeight));
     }
 
+    private List<string> _filmstripPaths = [];
+    private int _filmstripIndex = -1;
+
     public ObservableCollection<PhotoTileViewModel> Filmstrip { get; } = new();
 
     [ObservableProperty] private PhotoTileViewModel? _selectedFilmstripItem;
+
+    public int FilmstripCount => _filmstripPaths.Count;
+
+    public string FilmstripPosition =>
+        _filmstripIndex < 0 || _filmstripPaths.Count == 0
+            ? string.Empty
+            : $"{_filmstripIndex + 1} / {_filmstripPaths.Count}";
 
     partial void OnSelectedFilmstripItemChanged(PhotoTileViewModel? value)
     {
         if (_syncingFilmstrip || value is null)
             return;
 
-        if (!string.Equals(value.AbsolutePath, FilePath, StringComparison.OrdinalIgnoreCase))
-            _ = LoadPhotoAsync(value.AbsolutePath, value.Caption);
+        var idx = _filmstripPaths.FindIndex(p =>
+            string.Equals(p, value.AbsolutePath, StringComparison.OrdinalIgnoreCase));
+
+        if (idx >= 0 && idx != _filmstripIndex)
+            NavigateToFilmstripIndex(idx);
     }
 
     public async Task LoadPhotoAsync(string absolutePath, string caption)
@@ -186,19 +199,74 @@ public partial class EditSessionViewModel : ObservableObject, IDisposable
         });
     }
 
-    public void SetFilmstrip(IEnumerable<PhotoTileViewModel> items, PhotoTileViewModel current)
+    public void SetFilmstripPaths(IReadOnlyList<string> paths, string currentPath)
     {
+        _filmstripPaths = paths.ToList();
+        _filmstripIndex = _filmstripPaths.FindIndex(p =>
+            string.Equals(p, currentPath, StringComparison.OrdinalIgnoreCase));
+
+        if (_filmstripIndex < 0 && _filmstripPaths.Count > 0)
+            _filmstripIndex = 0;
+
+        RebuildFilmstripWindow();
+        OnPropertyChanged(nameof(FilmstripCount));
+        OnPropertyChanged(nameof(FilmstripPosition));
+    }
+
+    public bool TryNavigateFilmstrip(int delta)
+    {
+        if (_filmstripPaths.Count == 0)
+            return false;
+
+        var next = _filmstripIndex + delta;
+        if (next < 0 || next >= _filmstripPaths.Count)
+            return false;
+
+        NavigateToFilmstripIndex(next);
+        return true;
+    }
+
+    private void NavigateToFilmstripIndex(int index)
+    {
+        _filmstripIndex = index;
+        var path = _filmstripPaths[index];
+        RebuildFilmstripWindow();
+        OnPropertyChanged(nameof(FilmstripPosition));
+        _ = LoadPhotoAsync(path, Path.GetFileName(path));
+    }
+
+    private void RebuildFilmstripWindow()
+    {
+        if (_filmstripPaths.Count == 0 || _filmstripIndex < 0)
+        {
+            Filmstrip.Clear();
+            SelectedFilmstripItem = null;
+            return;
+        }
+
+        const int radius = 12;
+        var start = Math.Max(0, _filmstripIndex - radius);
+        var end = Math.Min(_filmstripPaths.Count - 1, _filmstripIndex + radius);
+        var currentPath = _filmstripPaths[_filmstripIndex];
+
         _syncingFilmstrip = true;
         try
         {
+            foreach (var t in Filmstrip)
+                t.Dispose();
             Filmstrip.Clear();
-            foreach (var item in items)
+
+            for (var i = start; i <= end; i++)
             {
-                item.IsSelected = string.Equals(item.AbsolutePath, current.AbsolutePath, StringComparison.OrdinalIgnoreCase);
-                Filmstrip.Add(item);
+                var path = _filmstripPaths[i];
+                var tile = new PhotoTileViewModel(path, Path.GetFileName(path))
+                {
+                    IsSelected = string.Equals(path, currentPath, StringComparison.OrdinalIgnoreCase)
+                };
+                Filmstrip.Add(tile);
             }
 
-            SelectedFilmstripItem = Filmstrip.FirstOrDefault(i => i.IsSelected) ?? current;
+            SelectedFilmstripItem = Filmstrip.FirstOrDefault(t => t.IsSelected) ?? Filmstrip.FirstOrDefault();
         }
         finally
         {
@@ -251,38 +319,26 @@ public partial class EditSessionViewModel : ObservableObject, IDisposable
         PreviewPanY = 0;
     }
 
-    public int? GetFilmstripIndex()
-    {
-        for (var i = 0; i < Filmstrip.Count; i++)
-        {
-            if (Filmstrip[i].IsSelected)
-                return i;
-        }
-
-        return null;
-    }
+    public int? GetFilmstripIndex() => _filmstripIndex >= 0 ? _filmstripIndex : null;
 
     public bool TrySelectFilmstripIndex(int index)
     {
-        if (index < 0 || index >= Filmstrip.Count)
+        if (index < 0 || index >= _filmstripPaths.Count)
             return false;
 
-        var tile = Filmstrip[index];
-        _syncingFilmstrip = true;
-        try
-        {
-            foreach (var item in Filmstrip)
-                item.IsSelected = ReferenceEquals(item, tile);
-            SelectedFilmstripItem = tile;
-        }
-        finally
-        {
-            _syncingFilmstrip = false;
-        }
+        NavigateToFilmstripIndex(index);
+        return true;
+    }
 
-        if (!string.Equals(tile.AbsolutePath, FilePath, StringComparison.OrdinalIgnoreCase))
-            _ = LoadPhotoAsync(tile.AbsolutePath, tile.Caption);
+    public bool SelectByPath(string absolutePath)
+    {
+        var idx = _filmstripPaths.FindIndex(p =>
+            string.Equals(p, absolutePath, StringComparison.OrdinalIgnoreCase));
 
+        if (idx < 0)
+            return false;
+
+        NavigateToFilmstripIndex(idx);
         return true;
     }
 

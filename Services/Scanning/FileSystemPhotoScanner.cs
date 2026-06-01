@@ -31,7 +31,7 @@ public sealed class FileSystemPhotoScanner : ILibraryScanner
                     continue;
 
                 count++;
-                if (count % 200 == 0)
+                if (count % 2000 == 0)
                     progress?.Report(count);
 
                 var entry = TryCreateEntry(path);

@@ -44,6 +44,18 @@ public sealed class InMemoryLibraryIndex : ILibraryIndex
                 .OrderBy(r => r, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            var directCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var photo in _photos)
+            {
+                var dir = Path.GetDirectoryName(photo.AbsolutePath);
+                if (string.IsNullOrEmpty(dir))
+                    continue;
+
+                dir = Path.TrimEndingDirectorySeparator(dir);
+                directCounts.TryGetValue(dir, out var n);
+                directCounts[dir] = n + 1;
+            }
+
             var nodes = new List<FolderBrowseNode>();
             foreach (var root in roots)
             {
@@ -67,7 +79,7 @@ public sealed class InMemoryLibraryIndex : ILibraryIndex
                     trie.InsertRelative(rel);
                 }
 
-                nodes.Add(trie.ToFolderBrowseNode(root, _photos));
+                nodes.Add(trie.ToFolderBrowseNode(directCounts));
             }
 
             return nodes;
@@ -105,17 +117,28 @@ public sealed class InMemoryLibraryIndex : ILibraryIndex
     public IReadOnlyList<FolderHierarchyBucket> GetPhotosGroupedByFolder(string? folderPrefix = null)
     {
         lock (_gate)
-        {
-            var filtered = FilterByFolder(_photos, folderPrefix);
+            return BuildFolderBuckets(FilterByFolder(_photos, folderPrefix));
+    }
 
-            return filtered
-                .GroupBy(p => Path.GetDirectoryName(p.AbsolutePath) ?? string.Empty)
-                .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
-                .Select(g => new FolderHierarchyBucket(
-                    Path.TrimEndingDirectorySeparator(g.Key),
-                    g.OrderBy(p => p.AbsolutePath, StringComparer.OrdinalIgnoreCase).ToList()))
+    public IReadOnlyList<string> GetOrderedPhotoPaths(string? folderPrefix = null)
+    {
+        lock (_gate)
+        {
+            return FilterByFolder(_photos, folderPrefix)
+                .Select(p => p.AbsolutePath)
                 .ToList();
         }
+    }
+
+    private static List<FolderHierarchyBucket> BuildFolderBuckets(List<PhotoEntry> filtered)
+    {
+        return filtered
+            .GroupBy(p => Path.GetDirectoryName(p.AbsolutePath) ?? string.Empty)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new FolderHierarchyBucket(
+                Path.TrimEndingDirectorySeparator(g.Key),
+                g.OrderBy(p => p.AbsolutePath, StringComparer.OrdinalIgnoreCase).ToList()))
+            .ToList();
     }
 
     public IReadOnlyList<DateHierarchyBucket> GetPhotosGroupedByDate(
@@ -267,19 +290,14 @@ public sealed class InMemoryLibraryIndex : ILibraryIndex
             }
         }
 
-        public FolderBrowseNode ToFolderBrowseNode(string rootPath, IReadOnlyList<PhotoEntry> allPhotos)
+        public FolderBrowseNode ToFolderBrowseNode(IReadOnlyDictionary<string, int> directCounts)
         {
             var children = Children.Values
                 .OrderBy(c => c.SegmentName, StringComparer.OrdinalIgnoreCase)
-                .Select(c => c.ToFolderBrowseNode(rootPath, allPhotos))
+                .Select(c => c.ToFolderBrowseNode(directCounts))
                 .ToList();
 
-            var direct = allPhotos.Count(p =>
-            {
-                var d = Path.GetDirectoryName(p.AbsolutePath);
-                return !string.IsNullOrEmpty(d) &&
-                       string.Equals(Path.TrimEndingDirectorySeparator(d), FullPath, StringComparison.Ordinal);
-            });
+            directCounts.TryGetValue(FullPath, out var direct);
 
             return new FolderBrowseNode
             {
