@@ -21,12 +21,14 @@ export interface EditValues {
 export interface PhotoItem {
   id: string;
   title: string;
+  /** Display URL (thumbnail/preview); filled by host or demo data. */
   src: string;
+  /** Absolute path when running inside Lumen desktop host. */
+  path?: string;
   iso: number;
   focalLength: string;
   aperture: string;
   shutter: string;
-  rating: number;
   favorite: boolean;
   flagged: boolean;
 }

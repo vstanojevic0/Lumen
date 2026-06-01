@@ -1,4 +1,5 @@
 import type { PhotoItem } from "../types";
+import { HostPhotoImage } from "./HostPhotoImage";
 
 interface FilmstripProps {
   photos: PhotoItem[];
@@ -23,7 +24,15 @@ export function Filmstrip({ photos, selectedId, onSelect }: FilmstripProps) {
                   : "opacity-70 hover:opacity-100"
               }`}
             >
-              <img src={photo.src} alt="" className="h-full w-full object-cover" />
+              {photo.path ? (
+                <HostPhotoImage
+                  path={photo.path}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <img src={photo.src} alt="" className="h-full w-full object-cover" />
+              )}
             </button>
           );
         })}

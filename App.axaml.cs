@@ -23,7 +23,9 @@ public partial class App : Application
             var scanner = new FileSystemPhotoScanner();
             var index = new InMemoryLibraryIndex();
             var mainVm = new MainWindowViewModel(scanner, index, settingsStore);
-            desktop.MainWindow = new MainWindow(mainVm);
+            var useClassicUi = desktop.Args?.Contains("--classic-ui", StringComparer.OrdinalIgnoreCase) == true
+                               || string.Equals(Environment.GetEnvironmentVariable("LUMEN_CLASSIC_UI"), "1", StringComparison.Ordinal);
+            desktop.MainWindow = useClassicUi ? new MainWindow(mainVm) : new WebHostWindow(mainVm);
         }
 
         base.OnFrameworkInitializationCompleted();

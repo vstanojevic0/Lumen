@@ -1,11 +1,12 @@
 import { RotateCcw } from "lucide-react";
 import { presets, type PresetId } from "../lib/presets";
-import type { AspectRatio, EditState } from "../types";
+import type { AspectRatio, EditState, PhotoItem } from "../types";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { PresetButton } from "./PresetButton";
 import { SliderControl } from "./SliderControl";
 
 interface RightEditPanelProps {
+  photo: PhotoItem;
   edits: EditState;
   activePreset: PresetId | null;
   onChange: <K extends keyof EditState>(key: K, value: EditState[K]) => void;
@@ -65,6 +66,7 @@ function ToneCurveCard() {
 }
 
 export function RightEditPanel({
+  photo,
   edits,
   activePreset,
   onChange,
@@ -76,15 +78,19 @@ export function RightEditPanel({
   const ratios: AspectRatio[] = ["free", "1:1", "4:3", "16:9"];
 
   return (
-    <aside className="glass flex h-full w-[300px] shrink-0 flex-col border-l border-white/8">
+    <aside className="glass flex h-full w-[300px] shrink-0 flex-col border-r border-white/8">
+      <div className="border-b border-white/8 px-4 py-3">
+        <div className="truncate text-sm font-medium text-white/90">{photo.title}</div>
+        <div className="mt-0.5 truncate text-[11px] text-white/40">Edit &amp; develop</div>
+      </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
         <CollapsibleSection title="Histogram" defaultOpen>
           <HistogramGraphic />
           <div className="grid grid-cols-2 gap-2 text-[11px] text-white/55">
-            <Meta label="ISO" value="64" />
-            <Meta label="Lens" value="50 mm" />
-            <Meta label="Aperture" value="f/8.0" />
-            <Meta label="Shutter" value="1/160 sec" />
+            <Meta label="ISO" value={photo.iso > 0 ? String(photo.iso) : "—"} />
+            <Meta label="Lens" value={photo.focalLength} />
+            <Meta label="Aperture" value={photo.aperture} />
+            <Meta label="Shutter" value={photo.shutter} />
           </div>
         </CollapsibleSection>
 

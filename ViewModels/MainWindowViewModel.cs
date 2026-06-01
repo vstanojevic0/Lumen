@@ -13,6 +13,7 @@ using Lumen.Services.Imaging;
 using Lumen.Services.Library;
 using Lumen.Services.Scanning;
 using Lumen.Services.Settings;
+using Lumen.Services.Web;
 
 namespace Lumen.ViewModels;
 
@@ -58,6 +59,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
 
     private PhotoTileViewModel? _inspectorTile;
 
+    public event Action? LibraryUpdated;
+
     public MainWindowViewModel(ILibraryScanner scanner, InMemoryLibraryIndex index, IAppSettingsStore store)
     {
         _scanner = scanner;
@@ -66,6 +69,72 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     public void AttachTopLevel(TopLevel topLevel) => _topLevel = topLevel;
+
+    public WebStatusDto GetWebStatus() =>
+        new(TotalPhotoCount, StatusText, IsBusy, GetFavoritePathSet().Count);
+
+    public WebGallerySnapshot GetWebGallerySnapshot(string? folderPath = null, bool favoritesOnly = false)
+    {
+        var favorites = GetFavoritePathSet();
+        var sections = BuildGallerySections(folderPath, favoritesOnly, favorites)
+            .Select(s => new WebGallerySectionDto(
+                s.HeaderText,
+                s.Photos.Select(p => new WebPhotoDto(
+                    p.AbsolutePath,
+                    p.Caption,
+                    favorites.Contains(p.AbsolutePath))).ToList()))
+            .ToList();
+
+        var visibleCount = sections.Sum(s => s.Photos.Count);
+        var status = favoritesOnly
+            ? $"Favorites · {visibleCount:N0} photos"
+            : folderPath is not null
+                ? $"{FormatFolderTitle(folderPath)} · {visibleCount:N0} photos"
+                : StatusText;
+
+        return new WebGallerySnapshot(visibleCount, status, IsBusy, sections);
+    }
+
+    public IReadOnlyList<WebFolderDto> GetWebFolderTree() =>
+        _index.GetFolderTree().Select(MapWebFolder).ToList();
+
+    public void SetPhotoFavorite(string absolutePath, bool favorite)
+    {
+        absolutePath = Path.GetFullPath(absolutePath);
+        var settings = _store.Load();
+        var set = settings.FavoritePaths
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (favorite)
+            set.Add(absolutePath);
+        else
+            set.Remove(absolutePath);
+
+        settings.FavoritePaths = set.OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
+        _store.Save(settings);
+        LibraryUpdated?.Invoke();
+    }
+
+    private HashSet<string> GetFavoritePathSet() =>
+        _store.Load().FavoritePaths
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static WebFolderDto MapWebFolder(FolderBrowseNode node) =>
+        new(
+            node.AbsolutePath,
+            node.DisplayName,
+            node.PhotoCountDirect,
+            node.Children.Select(MapWebFolder).ToList());
+
+    public Task RequestRescanAsync() => ScanLibraryAsync();
+
+    public async Task RequestAddFolderAsync()
+    {
+        if (AddAccessibleFolderCommand.CanExecute(null))
+            await AddAccessibleFolderCommand.ExecuteAsync(null).ConfigureAwait(true);
+    }
 
     private bool _initialized;
 
@@ -546,6 +615,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         finally
         {
             IsBusy = false;
+            LibraryUpdated?.Invoke();
         }
     }
 
@@ -606,6 +676,8 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             ClearPhotoTimeline();
             foreach (var section in built)
                 GallerySections.Add(section);
+
+            LibraryUpdated?.Invoke();
         });
     }
 
@@ -621,12 +693,16 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         });
     }
 
-    private List<MonthSectionViewModel> BuildGallerySections(string? folderPath)
+    private List<MonthSectionViewModel> BuildGallerySections(
+        string? folderPath,
+        bool favoritesOnly = false,
+        HashSet<string>? favoritePaths = null)
     {
         var culture = CultureInfo.GetCultureInfo("en-US");
         var query = SearchQuery.Trim();
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var sections = new List<MonthSectionViewModel>();
+        favoritePaths ??= favoritesOnly ? GetFavoritePathSet() : [];
 
         var useMonthHeaders = string.IsNullOrEmpty(folderPath);
         IEnumerable<DateHierarchyBucket> buckets = useMonthHeaders
@@ -647,6 +723,9 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             foreach (var photo in bucket.Photos)
             {
                 if (!seenPaths.Add(photo.AbsolutePath))
+                    continue;
+
+                if (favoritesOnly && !favoritePaths.Contains(photo.AbsolutePath))
                     continue;
 
                 var name = Path.GetFileName(photo.AbsolutePath);

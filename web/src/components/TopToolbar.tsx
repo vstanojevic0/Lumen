@@ -20,6 +20,7 @@ interface TopToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   onExport: () => void;
+  statusText?: string;
 }
 
 export function TopToolbar({
@@ -32,6 +33,7 @@ export function TopToolbar({
   onUndo,
   onRedo,
   onExport,
+  statusText,
 }: TopToolbarProps) {
   return (
     <header className="glass flex h-14 shrink-0 items-center gap-3 border-b border-white/8 px-4">
@@ -85,10 +87,19 @@ export function TopToolbar({
         <span className="w-10 text-right text-xs tabular-nums text-white/60">{zoom}%</span>
       </div>
 
+      {statusText ? (
+        <span
+          className="ml-auto max-w-[220px] truncate text-[11px] text-white/40"
+          title={statusText}
+        >
+          {statusText}
+        </span>
+      ) : null}
+
       <button
         type="button"
         onClick={onExport}
-        className="ml-auto flex items-center gap-2 rounded-xl bg-[#3b9bff] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#3b9bff]/25 hover:bg-[#4aa5ff]"
+        className={`flex items-center gap-2 rounded-xl bg-[#3b9bff] px-4 py-2 text-sm font-medium text-white shadow-lg shadow-[#3b9bff]/25 hover:bg-[#4aa5ff] ${statusText ? "" : "ml-auto"}`}
       >
         <Download size={16} />
         Export
