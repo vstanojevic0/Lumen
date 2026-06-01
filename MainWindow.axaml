@@ -5,66 +5,86 @@
         x:Class="Lumen.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="Lumen"
-        Width="1480"
-        Height="920"
-        MinWidth="1180"
-        MinHeight="720"
+        Width="1520"
+        Height="940"
+        MinWidth="1200"
+        MinHeight="740"
         WindowStartupLocation="CenterScreen"
         Focusable="True"
         Background="#080C12">
   <Grid ColumnDefinitions="248,*,300">
-    <!-- LEFT SIDEBAR -->
+    <!-- SIDEBAR -->
     <Border Grid.Column="0" Classes="sidebar-modern">
       <Grid RowDefinitions="Auto,*,Auto">
-        <Border Grid.Row="0" Classes="sidebar-header" Padding="18,20,18,16">
-          <StackPanel Spacing="12">
-            <StackPanel Orientation="Horizontal" Spacing="12">
-              <Border Width="40" Height="40" CornerRadius="12" Classes="brand-mark">
-                <TextBlock Text="L" FontSize="18" FontWeight="Bold"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-              </Border>
-              <StackPanel VerticalAlignment="Center" Spacing="2">
-                <TextBlock Text="Lumen" FontSize="19" FontWeight="SemiBold" />
-                <TextBlock Text="Photo library" FontSize="11" Opacity="0.45" />
-              </StackPanel>
+        <Border Grid.Row="0" Classes="sidebar-header" Padding="16,18,16,14">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Border Width="40" Height="40" CornerRadius="12" Classes="brand-mark">
+              <TextBlock Text="L" FontSize="18" FontWeight="Bold"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Text="Lumen" FontSize="18" FontWeight="SemiBold" />
+              <TextBlock Text="Photo library" FontSize="11" Opacity="0.45" />
             </StackPanel>
           </StackPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="1" Padding="8,4,8,8">
-          <StackPanel Spacing="2">
-            <Button Command="{Binding ShowLibraryCommand}"
-                    Classes="sidebar-nav"
-                    Classes.active="{Binding IsLibraryMode}">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="All Photos" VerticalAlignment="Center" />
-                <Border Grid.Column="1" Classes="count-badge">
-                  <TextBlock Text="{Binding TotalPhotoCount, StringFormat={}{0:N0}}" FontSize="10" />
+        <ScrollViewer Grid.Row="1" Padding="6,4">
+          <StackPanel>
+            <Button Command="{Binding ShowLibraryCommand}" Classes="sidebar-nav" Classes.active="{Binding IsLibraryMode}">
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <TextBlock Grid.Column="0" Text="▣" Classes="nav-icon" />
+                <TextBlock Grid.Column="1" Text="All Photos" VerticalAlignment="Center" />
+                <Border Grid.Column="2" Classes="count-badge">
+                  <TextBlock Text="{Binding TotalPhotoCount, StringFormat={}{0:N0}}" />
                 </Border>
               </Grid>
             </Button>
-            <Button Content="Favorites" Classes="sidebar-nav" IsEnabled="False" Opacity="0.45" />
-            <Button Command="{Binding ShowFolderAlbumsCommand}"
-                    Content="Albums"
-                    Classes="sidebar-nav"
-                    Classes.active="{Binding IsFolderAlbumsMode}" />
-            <Button Content="People" Classes="sidebar-nav" IsEnabled="False" Opacity="0.45" />
-            <Button Content="Places" Classes="sidebar-nav" IsEnabled="False" Opacity="0.45" />
-            <Button Content="Imports" Classes="sidebar-nav" IsEnabled="False" Opacity="0.45" />
+            <Button Classes="sidebar-nav" IsEnabled="False" Opacity="0.4">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="♡" Classes="nav-icon" /><TextBlock Text="Favorites" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Command="{Binding ShowFolderAlbumsCommand}" Classes="sidebar-nav" Classes.active="{Binding IsFolderAlbumsMode}">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="▦" Classes="nav-icon" /><TextBlock Text="Albums" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="sidebar-nav" IsEnabled="False" Opacity="0.4">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="◎" Classes="nav-icon" /><TextBlock Text="People" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="sidebar-nav" IsEnabled="False" Opacity="0.4">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="⌖" Classes="nav-icon" /><TextBlock Text="Places" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="sidebar-nav" IsEnabled="False" Opacity="0.4">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="↓" Classes="nav-icon" /><TextBlock Text="Imports" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
 
-            <TextBlock Text="Library" Classes="sidebar-section-label" Margin="8,14,8,6" />
-            <Button Content="Recent" Classes="sidebar-nav" IsEnabled="False" Opacity="0.45" />
-            <Button Content="Hidden" Classes="sidebar-nav" IsEnabled="False" Opacity="0.45" />
-            <Button Content="Trash" Classes="sidebar-nav" IsEnabled="False" Opacity="0.45" />
+            <TextBlock Text="LIBRARY" Classes="sidebar-section-label" Margin="10,16,10,6" />
+            <Button Classes="sidebar-row" IsEnabled="False" Opacity="0.4" Content="Recent" />
+            <Button Classes="sidebar-row" IsEnabled="False" Opacity="0.4" Content="Hidden" />
+            <Button Classes="sidebar-row" IsEnabled="False" Opacity="0.4" Content="Trash" />
 
-            <TextBlock Text="Folders" Classes="sidebar-section-label" Margin="8,14,8,6" />
-            <ListBox ItemsSource="{Binding FolderList}"
-                     SelectedItem="{Binding SelectedFolder, Mode=TwoWay}"
-                     MaxHeight="220"
-                     Classes="sidebar-folder-list">
+            <TextBlock Text="ALBUMS" Classes="sidebar-section-label" Margin="10,14,10,6" />
+            <Button Classes="sidebar-row" IsEnabled="False" Opacity="0.4" Content="  Road Trip Iceland" HorizontalContentAlignment="Left" />
+            <Button Classes="sidebar-row" IsEnabled="False" Opacity="0.4" Content="  Japan 2024" HorizontalContentAlignment="Left" />
+            <Button Classes="sidebar-row" IsEnabled="False" Opacity="0.4" Content="  Summer Days" HorizontalContentAlignment="Left" />
+
+            <TextBlock Text="FOLDERS" Classes="sidebar-section-label" Margin="10,14,10,6" />
+            <ListBox ItemsSource="{Binding FolderList}" SelectedItem="{Binding SelectedFolder, Mode=TwoWay}"
+                     MaxHeight="200" Classes="sidebar-folder-list">
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:FolderListItemViewModel">
-                  <TextBlock Text="{Binding Title}" FontSize="12" TextTrimming="CharacterEllipsis" Margin="4,6" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,5">
+                    <TextBlock Text="▸" Opacity="0.35" />
+                    <TextBlock Text="{Binding Title}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
                 </DataTemplate>
               </ListBox.ItemTemplate>
             </ListBox>
@@ -73,15 +93,20 @@
 
         <Border Grid.Row="2" Classes="sidebar-footer" Padding="14,12,14,16">
           <StackPanel Spacing="8">
-            <StackPanel Spacing="4">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Storage" FontSize="10" Opacity="0.45" />
-                <TextBlock Grid.Column="1" Text="Library" FontSize="10" Opacity="0.45" />
-              </Grid>
-              <Border Height="4" CornerRadius="2" Background="#1A2433" ClipToBounds="True">
-                <Border Height="4" HorizontalAlignment="Left" Width="120" CornerRadius="2" Background="#3B9BFF" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Storage" FontSize="10" Opacity="0.45" />
+              <TextBlock Grid.Column="1" Text="{Binding TotalPhotoCount, StringFormat={}{0:N0} photos}" FontSize="10" Opacity="0.45" />
+            </Grid>
+            <Border Height="6" CornerRadius="3" Background="#1AFFFFFF" ClipToBounds="True">
+              <Border Height="6" HorizontalAlignment="Left" Width="100" CornerRadius="3">
+                <Border.Background>
+                  <LinearGradientBrush StartPoint="0%,50%" EndPoint="100%,50%">
+                    <GradientStop Color="#3B9BFF" Offset="0" />
+                    <GradientStop Color="#2A6FD4" Offset="1" />
+                  </LinearGradientBrush>
+                </Border.Background>
               </Border>
-            </StackPanel>
+            </Border>
             <Button Content="Rescan library" Command="{Binding RescanLibraryCommand}" Classes="sidebar-action" />
             <Button Content="Library locations…" Command="{Binding OpenLibrarySetupCommand}" Classes="sidebar-action" />
             <Button Content="Add folder…" Command="{Binding AddAccessibleFolderCommand}" Classes="sidebar-action" />
@@ -90,117 +115,79 @@
       </Grid>
     </Border>
 
-    <!-- MAIN COLUMN -->
+    <!-- MAIN -->
     <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto">
-      <!-- Top toolbar -->
-      <Border Grid.Row="0" Classes="toolbar-glass" Padding="16,10">
-        <Grid ColumnDefinitions="*,Auto,Auto">
-          <TextBox Grid.Column="0"
-                   Classes="search"
-                   PlaceholderText="Search your photos"
-                   Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                   MaxWidth="480"
-                   HorizontalAlignment="Center" />
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="12,0">
-            <Button Content="Library"
-                    Command="{Binding ShowLibraryCommand}"
-                    Classes="toolbar-chip"
-                    Classes.active="{Binding IsLibraryGridVisible}" />
-            <Button Content="Edit"
-                    Command="{Binding CloseEditCommand}"
-                    IsVisible="{Binding IsEditMode}"
-                    Classes="toolbar-chip active" />
-            <Button Content="{Binding StatusText}"
-                    IsVisible="{Binding IsBusy}"
-                    Classes="toolbar-chip"
-                    IsEnabled="False" />
+      <Border Grid.Row="0" Classes="toolbar-glass" Padding="14,10">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+          <Panel>
+            <TextBox Classes="search" PlaceholderText="Search your photos"
+                     Text="{Binding SearchQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     MaxWidth="440" HorizontalAlignment="Center" />
+            <TextBlock Text="⌘F" FontSize="10" Opacity="0.35" HorizontalAlignment="Right"
+                       VerticalAlignment="Center" Margin="0,0,14,0" IsHitTestVisible="False" />
+          </Panel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <ComboBox Classes="workspace-mode" SelectedItem="{Binding WorkspaceMode, Mode=TwoWay}">
+              <ComboBoxItem>Library</ComboBoxItem>
+              <ComboBoxItem>Edit</ComboBoxItem>
+            </ComboBox>
+            <Button Content="↶" Classes="toolbar-icon" ToolTip.Tip="Undo" />
+            <Button Content="↷" Classes="toolbar-icon" ToolTip.Tip="Redo" />
+            <Button Content="▦" Classes="toolbar-icon active" ToolTip.Tip="Grid" />
           </StackPanel>
-          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
-                        IsVisible="{Binding IsEditMode}">
-              <TextBlock Text="Zoom" FontSize="11" Opacity="0.5" VerticalAlignment="Center" />
-              <Slider Width="88" Minimum="25" Maximum="200"
-                      Value="{Binding PreviewZoomPercent, Mode=TwoWay}"
-                      Classes="edit-slider" />
-              <TextBlock Text="{Binding PreviewZoomPercent, StringFormat={}{0}%}"
-                         FontSize="11" Opacity="0.55" VerticalAlignment="Center" Width="36" />
-            </StackPanel>
-            <Button Content="Export…" Command="{Binding ExportPhotoCommand}"
-                    Classes="primary"
-                    IsVisible="{Binding IsEditMode}" />
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+            <Border Classes="zoom-box" IsVisible="{Binding IsEditMode}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="⊕" Opacity="0.4" VerticalAlignment="Center" />
+                <Slider Width="80" Minimum="25" Maximum="200" Value="{Binding PreviewZoomPercent, Mode=TwoWay}" Classes="edit-slider" />
+                <TextBlock Text="{Binding PreviewZoomPercent, StringFormat={}{0}%}" FontSize="11" Opacity="0.55" VerticalAlignment="Center" MinWidth="36" />
+              </StackPanel>
+            </Border>
+            <Button Content="Export" Command="{Binding ExportPhotoCommand}" Classes="primary" MinWidth="100" />
           </StackPanel>
         </Grid>
       </Border>
 
-      <!-- Library grid -->
-      <ScrollViewer Grid.Row="1"
-                    IsVisible="{Binding IsLibraryGridVisible}"
-                    Padding="18,10"
-                    HorizontalScrollBarVisibility="Disabled">
-        <StackPanel>
-          <Button Content="← Back to all photos"
-                  Command="{Binding ShowLibraryCommand}"
-                  Classes="nav-item"
-                  Margin="6,0,0,8"
-                  IsVisible="{Binding IsFolderPhotosMode}" />
-          <TextBlock Text="{Binding CenterTitle}"
-                     FontSize="15"
-                     FontWeight="SemiBold"
-                     Margin="6,0,0,8"
-                     IsVisible="{Binding !IsLibraryMode}" />
-          <ItemsControl ItemsSource="{Binding GallerySections}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:MonthSectionViewModel">
-                <StackPanel Margin="0,6,0,14">
-                  <TextBlock Text="{Binding HeaderText}" FontSize="16" FontWeight="SemiBold" Margin="6,8,6,10" />
-                  <ItemsControl ItemsSource="{Binding Photos}">
-                    <ItemsControl.ItemsPanel>
-                      <ItemsPanelTemplate>
-                        <WrapPanel />
-                      </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="vm:PhotoTileViewModel">
-                        <ctrl:LazyThumbnailHost Width="168" Height="180" Margin="6,4"
-                                                CornerRadius="12" ClipToBounds="True"
-                                                Background="#141A22" BorderBrush="#22FFFFFF" BorderThickness="1"
-                                                Classes.selected="{Binding IsSelected}"
-                                                Tapped="PhotoTile_OnTapped">
-                          <Grid RowDefinitions="*,Auto">
-                            <Image Source="{Binding Thumbnail, Mode=OneWay}" Stretch="UniformToFill" Height="148"
-                                   x:CompileBindings="False" />
-                            <Border Grid.Row="1" Padding="8,5" Background="#99000000">
-                              <TextBlock Text="{Binding Caption}" Foreground="White" FontSize="11"
-                                         TextTrimming="CharacterEllipsis" />
-                            </Border>
-                          </Grid>
-                        </ctrl:LazyThumbnailHost>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
+      <!-- Library -->
+      <ScrollViewer Grid.Row="1" IsVisible="{Binding IsLibraryGridVisible}" Padding="20,14">
+        <ItemsControl ItemsSource="{Binding GallerySections}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:MonthSectionViewModel">
+              <StackPanel Margin="0,4,0,18">
+                <TextBlock Text="{Binding HeaderText}" FontSize="17" FontWeight="SemiBold" Margin="4,8,4,12" />
+                <ItemsControl ItemsSource="{Binding Photos}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PhotoTileViewModel">
+                      <ctrl:LazyThumbnailHost Width="208" Height="160" Margin="6"
+                                              Classes="photo-card"
+                                              Classes.selected="{Binding IsSelected}"
+                                              Tapped="PhotoTile_OnTapped">
+                        <Image Source="{Binding Thumbnail, Mode=OneWay}" Stretch="UniformToFill"
+                               x:CompileBindings="False" />
+                      </ctrl:LazyThumbnailHost>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
       </ScrollViewer>
 
-      <!-- Folder albums -->
-      <ScrollViewer Grid.Row="1" IsVisible="{Binding IsFolderAlbumGridVisible}" Padding="18,10">
+      <ScrollViewer Grid.Row="1" IsVisible="{Binding IsFolderAlbumGridVisible}" Padding="20,14">
         <ItemsControl ItemsSource="{Binding FolderAlbums}">
           <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <WrapPanel />
-            </ItemsPanelTemplate>
+            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:FolderAlbumViewModel">
               <ctrl:FolderAlbumCard Width="200" Height="168" Margin="8" CornerRadius="14" ClipToBounds="True"
-                                    Background="#141A22" BorderBrush="#22FFFFFF" BorderThickness="1"
-                                    Cursor="Hand" Tapped="FolderAlbum_OnTapped">
+                                    Classes="photo-card" Cursor="Hand" Tapped="FolderAlbum_OnTapped">
                 <Grid RowDefinitions="*,Auto">
-                  <Image Source="{Binding CoverThumbnail, Mode=OneWay}" Stretch="UniformToFill" Height="120"
-                         x:CompileBindings="False" />
+                  <Image Source="{Binding CoverThumbnail, Mode=OneWay}" Stretch="UniformToFill" Height="120" x:CompileBindings="False" />
                   <Border Grid.Row="1" Padding="10,8" Background="#99000000">
                     <Grid ColumnDefinitions="*,Auto">
                       <TextBlock Text="{Binding Title}" Foreground="White" FontSize="12" TextTrimming="CharacterEllipsis" />
@@ -214,24 +201,36 @@
         </ItemsControl>
       </ScrollViewer>
 
-      <!-- Edit workspace: large canvas + filmstrip -->
-      <Grid Grid.Row="1" RowDefinitions="*,Auto" IsVisible="{Binding IsEditWorkspace}">
-        <Border x:Name="EditCanvasHost" Grid.Row="0" Margin="12,8" Classes="edit-canvas" ClipToBounds="True" Focusable="True">
-          <Grid>
-            <Image x:Name="EditPreviewImage" Stretch="Uniform"
-                   HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12"
-                   x:CompileBindings="False" />
-            <ctrl:CropOverlay Session="{Binding EditSession}" IsHitTestVisible="{Binding EditSession.IsCropMode}" />
-            <TextBlock Text="Loading…" IsVisible="{Binding EditSession.IsLoadingPreview}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.55" />
-            <TextBlock Text="{Binding EditSession.LoadError}"
-                       IsVisible="{Binding EditSession.LoadError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.7"
-                       TextWrapping="Wrap" MaxWidth="400" TextAlignment="Center" />
+      <!-- Edit canvas (demo layout) -->
+      <Grid Grid.Row="1" RowDefinitions="*,Auto,Auto" IsVisible="{Binding IsEditWorkspace}">
+        <Border x:Name="EditCanvasHost" Grid.Row="0" Classes="edit-canvas" Focusable="True">
+          <Grid RowDefinitions="*,Auto">
+            <Panel Grid.Row="0" Margin="16">
+              <Image x:Name="EditPreviewImage" Stretch="Uniform"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"
+                     x:CompileBindings="False" />
+              <ctrl:CropOverlay Session="{Binding EditSession}" IsHitTestVisible="{Binding EditSession.IsCropMode}" />
+              <TextBlock Text="Loading…" IsVisible="{Binding EditSession.IsLoadingPreview}"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5" />
+              <TextBlock Text="{Binding EditSession.LoadError}"
+                         IsVisible="{Binding EditSession.LoadError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="420" />
+            </Panel>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Margin="0,8,0,12">
+              <Button Content="♡ Favorite" Classes="action-chip" />
+              <Button Content="⚑ Flag" Classes="action-chip" />
+              <Button Content="⎘ Copy edits" Classes="action-chip" />
+            </StackPanel>
           </Grid>
         </Border>
-        <Border Grid.Row="1" Classes="filmstrip-bar" Margin="12,0,12,8" Padding="8">
-          <ListBox ItemsSource="{Binding EditSession.Filmstrip}"
+        <Border Grid.Row="1" Margin="16,0" Padding="4,0">
+          <StackPanel Spacing="2" HorizontalAlignment="Center">
+            <TextBlock Text="{Binding EditSession.FileName}" FontWeight="SemiBold" FontSize="14" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding EditSession.FilmstripPosition}" FontSize="11" Opacity="0.45" HorizontalAlignment="Center" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Row="2" Classes="filmstrip-bar" Margin="16,0,16,12" Padding="8">
+          <ListBox Classes="filmstrip" ItemsSource="{Binding EditSession.Filmstrip}"
                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
                    ScrollViewer.VerticalScrollBarVisibility="Disabled">
             <ListBox.ItemsPanel>
@@ -242,8 +241,7 @@
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:PhotoTileViewModel">
                 <ctrl:LazyThumbnailHost Width="88" Height="66" CornerRadius="8" ClipToBounds="True"
-                                        Classes="filmstrip-item"
-                                        Classes.selected="{Binding IsSelected}"
+                                        Classes="filmstrip-item" Classes.selected="{Binding IsSelected}"
                                         Tapped="Filmstrip_OnTapped">
                   <Image Source="{Binding Thumbnail, Mode=OneWay}" Stretch="UniformToFill" x:CompileBindings="False" />
                 </ctrl:LazyThumbnailHost>
@@ -253,67 +251,86 @@
         </Border>
       </Grid>
 
-      <Border Grid.Row="2" Padding="14,6" Background="#E60A0E14">
-        <TextBlock Text="{Binding StatusText}" FontSize="12" Opacity="0.6" />
+      <Border Grid.Row="2" Padding="14,6" Background="#99080C12">
+        <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.5" />
       </Border>
     </Grid>
 
-    <!-- RIGHT EDIT PANEL -->
-    <Border Grid.Column="2" Classes="sidebar" IsVisible="{Binding IsEditMode}">
-      <ScrollViewer Padding="12,14">
-        <StackPanel Spacing="10">
-          <StackPanel Spacing="2">
-            <TextBlock Text="{Binding EditSession.FileName}" FontWeight="SemiBold" TextWrapping="Wrap" FontSize="14" />
-            <TextBlock Text="{Binding EditSession.FilmstripPosition}" FontSize="11" Opacity="0.5" />
-            <TextBlock Text="{Binding EditSession.CaptureInfo}" FontSize="11" Opacity="0.55" />
-            <TextBlock Text="{Binding EditSession.CameraInfo}" FontSize="11" Opacity="0.55" />
+    <!-- RIGHT PANEL -->
+    <Border Grid.Column="2" Classes="panel-glass" IsVisible="{Binding IsEditMode}">
+      <ScrollViewer Padding="10,12">
+        <StackPanel Spacing="8">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="Info" Classes="nav-item" Width="64" />
+            <Button Content="Edit" Classes="nav-item active" Width="64" />
           </StackPanel>
 
-          <Button Content="← Back to library" Command="{Binding CloseEditCommand}" Classes="nav-item" HorizontalAlignment="Stretch" />
-
           <Expander Header="Histogram" IsExpanded="True" Classes="edit-expander">
-            <StackPanel Spacing="8" Margin="0,6,0,0">
-              <ctrl:HistogramControl Data="{Binding EditSession.Histogram}" Height="48" />
-              <Grid ColumnDefinitions="*,*">
-                <TextBlock Text="Dimensions" Opacity="0.45" FontSize="10" />
-                <TextBlock Grid.Column="1" Text="{Binding EditSession.DimensionsInfo}" FontSize="10" HorizontalAlignment="Right" />
-              </Grid>
+            <StackPanel Spacing="8" Margin="0,4,0,0">
+              <ctrl:HistogramControl Data="{Binding EditSession.Histogram}" Height="56" />
+              <UniformGrid Columns="2" ColumnSpacing="6" RowSpacing="6">
+                <Border Classes="meta-pill">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="File" Opacity="0.4" FontSize="10" />
+                    <TextBlock Text="{Binding EditSession.CameraInfo}" FontSize="11" />
+                  </StackPanel>
+                </Border>
+                <Border Classes="meta-pill">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="Size" Opacity="0.4" FontSize="10" />
+                    <TextBlock Text="{Binding EditSession.DimensionsInfo}" FontSize="11" />
+                  </StackPanel>
+                </Border>
+              </UniformGrid>
             </StackPanel>
           </Expander>
 
           <Expander Header="Light" IsExpanded="True" Classes="edit-expander">
-            <StackPanel Spacing="10" DataContext="{Binding EditSession.Edits}" Margin="0,6,0,0">
-              <StackPanel Spacing="4"><TextBlock Text="Exposure" FontSize="12" Opacity="0.75" /><Slider Minimum="-2" Maximum="2" Value="{Binding Exposure, Mode=TwoWay}" Classes="edit-slider" /></StackPanel>
-              <StackPanel Spacing="4"><TextBlock Text="Contrast" FontSize="12" Opacity="0.75" /><Slider Minimum="-100" Maximum="100" Value="{Binding Contrast, Mode=TwoWay}" Classes="edit-slider" /></StackPanel>
-              <StackPanel Spacing="4"><TextBlock Text="Highlights" FontSize="12" Opacity="0.75" /><Slider Minimum="-100" Maximum="100" Value="{Binding Highlights, Mode=TwoWay}" Classes="edit-slider" /></StackPanel>
-              <StackPanel Spacing="4"><TextBlock Text="Shadows" FontSize="12" Opacity="0.75" /><Slider Minimum="-100" Maximum="100" Value="{Binding Shadows, Mode=TwoWay}" Classes="edit-slider" /></StackPanel>
-              <StackPanel Spacing="4"><TextBlock Text="Whites" FontSize="12" Opacity="0.75" /><Slider Minimum="-100" Maximum="100" Value="{Binding Whites, Mode=TwoWay}" Classes="edit-slider" /></StackPanel>
-              <StackPanel Spacing="4"><TextBlock Text="Blacks" FontSize="12" Opacity="0.75" /><Slider Minimum="-100" Maximum="100" Value="{Binding Blacks, Mode=TwoWay}" Classes="edit-slider" /></StackPanel>
+            <StackPanel Spacing="12" DataContext="{Binding EditSession.Edits}" Margin="0,4,0,0">
+              <ctrl:EditSliderRow Label="Exposure" Minimum="-2" Maximum="2" ValueFormat="0.00" Value="{Binding Exposure, Mode=TwoWay}" />
+              <ctrl:EditSliderRow Label="Contrast" Minimum="-100" Maximum="100" Value="{Binding Contrast, Mode=TwoWay}" />
+              <ctrl:EditSliderRow Label="Highlights" Minimum="-100" Maximum="100" Value="{Binding Highlights, Mode=TwoWay}" />
+              <ctrl:EditSliderRow Label="Shadows" Minimum="-100" Maximum="100" Value="{Binding Shadows, Mode=TwoWay}" />
+              <ctrl:EditSliderRow Label="Whites" Minimum="-100" Maximum="100" Value="{Binding Whites, Mode=TwoWay}" />
+              <ctrl:EditSliderRow Label="Blacks" Minimum="-100" Maximum="100" Value="{Binding Blacks, Mode=TwoWay}" />
             </StackPanel>
           </Expander>
 
           <Expander Header="Color" IsExpanded="True" Classes="edit-expander">
-            <StackPanel Spacing="10" DataContext="{Binding EditSession.Edits}" Margin="0,6,0,0">
-              <StackPanel Spacing="4"><TextBlock Text="Vibrance" FontSize="12" Opacity="0.75" /><Slider Minimum="-100" Maximum="100" Value="{Binding Vibrance, Mode=TwoWay}" Classes="edit-slider" /></StackPanel>
-              <StackPanel Spacing="4"><TextBlock Text="Saturation" FontSize="12" Opacity="0.75" /><Slider Minimum="-100" Maximum="100" Value="{Binding Saturation, Mode=TwoWay}" Classes="edit-slider" /></StackPanel>
+            <StackPanel Spacing="12" DataContext="{Binding EditSession.Edits}" Margin="0,4,0,0">
+              <ctrl:EditSliderRow Label="Vibrance" Minimum="-100" Maximum="100" Value="{Binding Vibrance, Mode=TwoWay}" />
+              <ctrl:EditSliderRow Label="Saturation" Minimum="-100" Maximum="100" Value="{Binding Saturation, Mode=TwoWay}" />
             </StackPanel>
+          </Expander>
+
+          <Expander Header="Tone curve" Classes="edit-expander">
+            <ctrl:ToneCurveCard Margin="0,6,0,0" />
           </Expander>
 
           <Expander Header="Transform" Classes="edit-expander">
-            <StackPanel Spacing="10" Margin="0,6,0,0">
-              <StackPanel Spacing="4" DataContext="{Binding EditSession.Edits}">
-                <TextBlock Text="Straighten" FontSize="12" Opacity="0.75" />
-                <Slider Minimum="-15" Maximum="15" Value="{Binding Straighten, Mode=TwoWay}" Classes="edit-slider" />
-              </StackPanel>
-              <Button Content="Crop &amp; straighten" Command="{Binding EditSession.ToggleCropModeCommand}"
-                      Classes="nav-item" HorizontalAlignment="Stretch" />
+            <StackPanel Spacing="10" Margin="0,4,0,0">
+              <ctrl:EditSliderRow DataContext="{Binding EditSession.Edits}" Label="Straighten" Minimum="-15" Maximum="15" Value="{Binding Straighten, Mode=TwoWay}" />
+              <Button Content="Toggle crop overlay" Command="{Binding EditSession.ToggleCropModeCommand}" Classes="nav-item" HorizontalAlignment="Stretch" />
             </StackPanel>
           </Expander>
 
-          <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-            <Button Content="Reset" Command="{Binding EditSession.ResetEditsCommand}" Classes="nav-item" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
-            <Button Content="Export" Command="{Binding ExportPhotoCommand}" Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
-          </StackPanel>
+          <Expander Header="Presets" IsExpanded="True" Classes="edit-expander">
+            <UniformGrid Columns="2" ColumnSpacing="6" RowSpacing="6" Margin="0,6,0,0">
+              <Button Content="Original" Classes="preset-chip" Command="{Binding ApplyEditPresetCommand}" CommandParameter="original" />
+              <Button Content="Bright" Classes="preset-chip" Command="{Binding ApplyEditPresetCommand}" CommandParameter="bright" />
+              <Button Content="Cinematic" Classes="preset-chip" Command="{Binding ApplyEditPresetCommand}" CommandParameter="cinematic" />
+              <Button Content="B&amp;W" Classes="preset-chip" Command="{Binding ApplyEditPresetCommand}" CommandParameter="bw" />
+              <Button Content="Warm" Classes="preset-chip" Command="{Binding ApplyEditPresetCommand}" CommandParameter="warm" />
+              <Button Content="Cool" Classes="preset-chip" Command="{Binding ApplyEditPresetCommand}" CommandParameter="cool" />
+              <Button Content="Lumen Boost" Classes="preset-chip" Command="{Binding ApplyEditPresetCommand}" CommandParameter="boost" />
+            </UniformGrid>
+          </Expander>
+
+          <Button Content="← Back to library" Command="{Binding CloseEditCommand}" Classes="nav-item" HorizontalAlignment="Stretch" Margin="0,4,0,0" />
+          <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+            <Button Grid.Column="0" Content="Reset" Command="{Binding EditSession.ResetEditsCommand}" Classes="nav-item" HorizontalContentAlignment="Center" />
+            <Button Grid.Column="1" Content="Export" Command="{Binding ExportPhotoCommand}" Classes="primary" HorizontalContentAlignment="Center" />
+          </Grid>
         </StackPanel>
       </ScrollViewer>
     </Border>

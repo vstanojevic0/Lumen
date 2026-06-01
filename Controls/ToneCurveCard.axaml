@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Lumen.Controls.ToneCurveCard"
+             Height="112">
+  <Border Classes="tone-curve-card" ClipToBounds="True">
+    <Canvas>
+      <Line StartPoint="12,100" EndPoint="168,16" Stroke="#18FFFFFF" StrokeThickness="1" />
+      <Path Data="M 12 100 Q 52 88 92 58 T 168 18"
+            Stroke="#3B9BFF" StrokeThickness="2" />
+      <Ellipse Canvas.Left="9" Canvas.Top="97" Width="6" Height="6" Fill="#3B9BFF" />
+      <Ellipse Canvas.Left="89" Canvas.Top="55" Width="6" Height="6" Fill="#7EB8FF" />
+      <Ellipse Canvas.Left="165" Canvas.Top="15" Width="6" Height="6" Fill="#3B9BFF" />
+    </Canvas>
+  </Border>
+</UserControl>

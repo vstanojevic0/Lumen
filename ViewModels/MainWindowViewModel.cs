@@ -34,6 +34,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _searchQuery = string.Empty;
     [ObservableProperty] private int _totalPhotoCount;
     [ObservableProperty] private int _previewZoomPercent = 100;
+    [ObservableProperty] private string _workspaceMode = "Library";
 
     public bool IsEditWorkspace => IsEditMode;
     public bool IsLibraryGridVisible => !IsEditMode && IsPhotoTimelineVisible;
@@ -121,9 +122,27 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         if (!value)
             SetInspectorTile(null);
 
+        WorkspaceMode = value ? "Edit" : "Library";
         OnPropertyChanged(nameof(IsEditWorkspace));
         OnPropertyChanged(nameof(IsLibraryGridVisible));
         OnPropertyChanged(nameof(IsFolderAlbumGridVisible));
+    }
+
+    partial void OnWorkspaceModeChanged(string value)
+    {
+        if (value == "Library")
+        {
+            if (IsEditMode)
+                CloseEdit();
+            return;
+        }
+
+        if (value == "Edit" && !IsEditMode)
+        {
+            var first = GallerySections.SelectMany(s => s.Photos).FirstOrDefault();
+            if (first is not null)
+                _ = OpenEditAsync(first);
+        }
     }
 
     partial void OnPreviewZoomPercentChanged(int value)
@@ -141,8 +160,64 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void ApplyEditPreset(string preset)
+    {
+        var e = EditSession.Edits;
+        switch (preset)
+        {
+            case "original":
+                EditSession.ResetEditsCommand.Execute(null);
+                break;
+            case "bright":
+                e.Reset();
+                e.Exposure = 0.35;
+                e.Contrast = 12;
+                e.Shadows = 18;
+                e.Highlights = -8;
+                e.Saturation = 8;
+                break;
+            case "cinematic":
+                e.Reset();
+                e.Exposure = -0.15;
+                e.Contrast = 22;
+                e.Shadows = 12;
+                e.Highlights = -18;
+                e.Blacks = -12;
+                e.Saturation = -6;
+                break;
+            case "bw":
+                e.Reset();
+                e.Contrast = 18;
+                e.Saturation = -100;
+                break;
+            case "warm":
+                e.Reset();
+                e.Exposure = 0.12;
+                e.Saturation = 12;
+                e.Vibrance = 10;
+                break;
+            case "cool":
+                e.Reset();
+                e.Exposure = 0.05;
+                e.Saturation = 6;
+                e.Shadows = 8;
+                break;
+            case "boost":
+                e.Reset();
+                e.Exposure = 0.28;
+                e.Contrast = 16;
+                e.Highlights = -12;
+                e.Shadows = 22;
+                e.Vibrance = 24;
+                e.Saturation = 10;
+                break;
+        }
+    }
+
+    [RelayCommand]
     private void ShowLibrary()
     {
+        CloseEdit();
         ViewMode = LibraryViewMode.Library;
         OpenFolderPath = null;
         CenterTitle = "Library";
@@ -243,6 +318,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             return;
 
         IsEditMode = true;
+        WorkspaceMode = "Edit";
         PreviewZoomPercent = 100;
         EditSession.ResetPreviewTransform();
         SetInspectorTile(tile);
