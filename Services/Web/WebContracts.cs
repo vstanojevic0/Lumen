@@ -10,7 +10,12 @@ public sealed record WebGallerySnapshot(
     bool IsBusy,
     IReadOnlyList<WebGallerySectionDto> Sections);
 
-public sealed record WebStatusDto(int TotalCount, string StatusText, bool IsBusy, int FavoriteCount);
+public sealed record WebStatusDto(
+    int TotalCount,
+    string StatusText,
+    bool IsBusy,
+    int FavoriteCount,
+    string? MediaBaseUrl);
 
 public sealed record WebFolderDto(
     string Path,

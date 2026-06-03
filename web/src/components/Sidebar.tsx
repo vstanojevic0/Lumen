@@ -1,103 +1,91 @@
 import {
   Folder,
   FolderOpen,
-  Image,
-  Settings,
-  Star,
+  Images,
+  Plus,
+  type LucideIcon,
 } from "lucide-react";
-import type { LibraryView } from "../lumen/hostBridge";
-import type { WebFolderDto } from "../lumen/hostBridge";
+import type { LibraryView, WebFolderDto } from "../lumen/hostBridge";
 
 export function Sidebar({
   totalCount = 0,
-  favoriteCount = 0,
   folders = [],
   view = "all",
   selectedFolderPath = null,
   host = false,
   onSelectAll,
-  onSelectFavorites,
   onSelectFolder,
   onAddFolder,
 }: {
   totalCount?: number;
-  favoriteCount?: number;
   folders?: WebFolderDto[];
   view?: LibraryView;
   selectedFolderPath?: string | null;
   host?: boolean;
   onSelectAll?: () => void;
-  onSelectFavorites?: () => void;
   onSelectFolder?: (path: string) => void;
   onAddFolder?: () => void;
 }) {
   const allActive = view === "all" && !selectedFolderPath;
-  const favoritesActive = view === "favorites";
 
   return (
-    <aside className="glass flex h-full w-[248px] shrink-0 flex-col border-r border-white/8">
-      <div className="border-b border-white/8 px-4 py-5">
+    <aside className="lumen-sidebar flex h-full w-[284px] shrink-0 flex-col border-r border-white/8">
+      <div className="px-5 pb-4 pt-5">
+        <div className="mb-7 flex gap-2">
+          <span className="h-3.5 w-3.5 rounded-full bg-[#ff5f57]" />
+          <span className="h-3.5 w-3.5 rounded-full bg-[#febc2e]" />
+          <span className="h-3.5 w-3.5 rounded-full bg-[#28c840]" />
+        </div>
+
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#3b9bff] to-[#2a6fd4] text-lg font-bold text-white shadow-lg shadow-[#3b9bff]/25">
-            L
-          </div>
-          <div>
-            <div className="text-lg font-semibold tracking-tight">Lumen</div>
-            <div className="text-[11px] text-white/45">Photo library</div>
-          </div>
+          <div className="h-10 w-10 rounded-full bg-[radial-gradient(circle_at_50%_38%,#ffd36f_0_18%,#ff6f61_19%_32%,#2f8cff_33%_58%,#183552_59%)] shadow-lg shadow-[#2f8cff]/25" />
+          <div className="text-[28px] font-bold leading-none tracking-tight text-white">Lumen</div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 py-3">
-        <nav className="space-y-0.5">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <nav className="space-y-1">
           <NavButton
-            icon={Image}
+            icon={Images}
             label="All Photos"
             active={allActive}
-            count={totalCount > 0 ? totalCount.toLocaleString() : host ? "0" : undefined}
+            count={formatCount(totalCount, host)}
             onClick={onSelectAll}
-          />
-          <NavButton
-            icon={Star}
-            label="Favorites"
-            active={favoritesActive}
-            count={favoriteCount > 0 ? favoriteCount.toLocaleString() : undefined}
-            onClick={onSelectFavorites}
           />
         </nav>
 
+        <div className="mt-5 mb-2 flex items-center justify-between px-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/42">
+            Folders
+          </span>
+          {host && onAddFolder ? (
+            <button
+              type="button"
+              onClick={onAddFolder}
+              className="flex h-6 w-6 items-center justify-center rounded-lg text-white/60 hover:bg-white/8 hover:text-white"
+              title="Add folder"
+            >
+              <Plus size={16} />
+            </button>
+          ) : null}
+        </div>
+
         {folders.length > 0 ? (
-          <>
-            <SectionLabel>Folders</SectionLabel>
-            <FolderTree
-              nodes={folders}
-              selectedFolderPath={selectedFolderPath}
-              onSelectFolder={onSelectFolder}
-            />
-          </>
+          <FolderTree
+            nodes={folders}
+            selectedFolderPath={selectedFolderPath}
+            onSelectFolder={onSelectFolder}
+          />
         ) : host ? (
-          <p className="mt-6 px-3 text-xs text-white/35">No folders with photos yet.</p>
+          <p className="px-2 text-xs text-white/35">No folders with photos yet.</p>
         ) : null}
       </div>
 
-      <div className="border-t border-white/8 p-4">
-        {host && onAddFolder ? (
-          <button
-            type="button"
-            onClick={onAddFolder}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#3b9bff]/30 bg-[#3b9bff]/10 py-2 text-xs text-[#9ec9ff] hover:bg-[#3b9bff]/20"
-          >
-            <FolderOpen size={14} />
-            Add folder…
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg py-2 text-xs text-white/50 hover:bg-white/6 hover:text-white/80"
-        >
-          <Settings size={14} />
-          Settings
-        </button>
+      <div className="px-5 pb-5 pt-4">
+        <div className="mb-3 text-xs text-white/55">Local desktop library</div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-white/42">{totalCount.toLocaleString()} photos indexed</span>
+        </div>
       </div>
     </aside>
   );
@@ -106,31 +94,31 @@ export function Sidebar({
 function NavButton({
   icon: Icon,
   label,
-  active,
+  active = false,
   count,
   onClick,
 }: {
-  icon: typeof Image;
+  icon: LucideIcon;
   label: string;
-  active: boolean;
-  count?: string;
+  active?: boolean;
+  count?: string | number;
   onClick?: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition ${
+      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition ${
         active
-          ? "bg-[#3b9bff]/15 text-white ring-1 ring-[#3b9bff]/40"
-          : "text-white/70 hover:bg-white/6 hover:text-white"
+          ? "bg-[#2f8cff]/35 text-white shadow-[inset_0_0_0_1px_rgb(111_183_255_/_0.16)]"
+          : "text-white/73 hover:bg-white/8 hover:text-white"
       }`}
     >
-      <Icon size={16} className={active ? "text-[#7eb8ff]" : "text-white/45"} />
-      <span className="flex-1 text-left">{label}</span>
-      {count ? (
-        <span className="rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] text-white/55">
-          {count}
+      <Icon size={17} className={active ? "text-white" : "text-white/58"} />
+      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      {count !== undefined ? (
+        <span className="text-xs tabular-nums text-white/52">
+          {typeof count === "number" ? count.toLocaleString() : count}
         </span>
       ) : null}
     </button>
@@ -149,7 +137,7 @@ function FolderTree({
   depth?: number;
 }) {
   return (
-    <>
+    <div className="space-y-1">
       {nodes.map((node) => {
         const active = selectedFolderPath === node.path;
         const hasChildren = node.children.length > 0;
@@ -158,24 +146,22 @@ function FolderTree({
             <button
               type="button"
               onClick={() => onSelectFolder?.(node.path)}
-              className={`flex w-full items-center gap-2 rounded-lg py-1.5 text-[13px] transition ${
+              className={`flex w-full items-center gap-2 rounded-xl py-1.5 text-[13px] transition ${
                 active
-                  ? "bg-white/10 text-white"
-                  : "text-white/65 hover:bg-white/6 hover:text-white"
+                  ? "bg-white/12 text-white"
+                  : "text-white/68 hover:bg-white/8 hover:text-white"
               }`}
-              style={{ paddingLeft: 12 + depth * 14, paddingRight: 12 }}
+              style={{ paddingLeft: 12 + depth * 16, paddingRight: 10 }}
             >
               {hasChildren ? (
-                <FolderOpen size={14} className="shrink-0 text-white/40" />
+                <FolderOpen size={16} className="shrink-0 text-white/48" />
               ) : (
-                <Folder size={14} className="shrink-0 text-white/40" />
+                <Folder size={16} className="shrink-0 text-white/48" />
               )}
               <span className="min-w-0 flex-1 truncate text-left">{node.title}</span>
-              {node.photoCount > 0 ? (
-                <span className="shrink-0 text-[10px] text-white/35 tabular-nums">
-                  {node.photoCount.toLocaleString()}
-                </span>
-              ) : null}
+              <span className="text-xs tabular-nums text-white/38">
+                {node.photoCount.toLocaleString()}
+              </span>
             </button>
             {hasChildren ? (
               <FolderTree
@@ -188,14 +174,11 @@ function FolderTree({
           </div>
         );
       })}
-    </>
+    </div>
   );
 }
 
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <div className="mt-5 mb-1.5 px-3 text-[10px] font-semibold tracking-widest text-white/35 uppercase">
-      {children}
-    </div>
-  );
+function formatCount(value: number, host: boolean) {
+  if (value > 0) return value.toLocaleString();
+  return host ? "0" : undefined;
 }

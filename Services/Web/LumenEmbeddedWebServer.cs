@@ -111,8 +111,10 @@ public sealed class LumenEmbeddedWebServer : IDisposable
     private async Task ServeMediaAsync(HttpListenerContext context, string path)
     {
         var query = context.Request.Url?.Query ?? string.Empty;
-        var photoPath = ParseQueryParam(query, "p");
-        photoPath = WebMediaHandler.DecodePathParameter(photoPath);
+        var encoded = ParseQueryParam(query, "p");
+        var photoPath = WebMediaHandler.DecodePathParameter(encoded);
+        if (string.IsNullOrWhiteSpace(photoPath) && !string.IsNullOrWhiteSpace(encoded))
+            photoPath = encoded;
 
         if (string.IsNullOrWhiteSpace(photoPath))
         {

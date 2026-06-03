@@ -228,6 +228,8 @@ public sealed class LumenWebBridge
             var json = JsonSerializer.Serialize(mediaBase, JsonOptions);
             await _webView.InvokeScript($"window.__lumenMediaBase = {json}").ConfigureAwait(true);
         }
+
+        await _webView.InvokeScript("window.dispatchEvent(new CustomEvent('lumen:hostReady'))").ConfigureAwait(true);
     }
 
     private async Task SendResponseAsync(string id, object? result, string? error)

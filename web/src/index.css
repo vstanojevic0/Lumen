@@ -2,12 +2,14 @@
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --color-lumen-bg: #080c12;
-  --color-lumen-panel: #0f141c;
-  --color-lumen-glass: rgb(18 24 34 / 0.72);
+  --color-lumen-bg: #07111d;
+  --color-lumen-panel: #132235;
+  --color-lumen-glass: rgb(19 34 53 / 0.72);
   --color-lumen-border: rgb(255 255 255 / 0.08);
-  --color-lumen-accent: #3b9bff;
-  --color-lumen-accent-dim: #2a6fd4;
+  --color-lumen-accent: #087bff;
+  --color-lumen-accent-dim: #1d5fb5;
+  --color-lumen-warm: #ffb86b;
+  --color-lumen-green: #75c9a3;
 }
 
 * {
@@ -23,7 +25,10 @@ body,
 
 body {
   font-family: var(--font-sans);
-  background: var(--color-lumen-bg);
+  background:
+    radial-gradient(circle at 50% 102%, rgb(8 123 255 / 0.28), transparent 34rem),
+    radial-gradient(circle at 22% 20%, rgb(121 159 202 / 0.16), transparent 28rem),
+    linear-gradient(135deg, #07111d 0%, #0c1a2b 52%, #06101c 100%);
   color: #e8edf5;
   overflow: hidden;
 }
@@ -39,8 +44,39 @@ body {
 }
 
 .glass {
-  background: var(--color-lumen-glass);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.055), rgb(255 255 255 / 0.025)),
+    var(--color-lumen-glass);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--color-lumen-border);
+}
+
+.lumen-surface {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.055), rgb(255 255 255 / 0.025));
+  border: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.lumen-app-shell {
+  background:
+    radial-gradient(circle at 80% 0%, rgb(8 123 255 / 0.18), transparent 30rem),
+    radial-gradient(circle at 30% 100%, rgb(83 139 190 / 0.16), transparent 28rem),
+    linear-gradient(135deg, #0a1524 0%, #10253b 48%, #091625 100%);
+}
+
+.lumen-sidebar {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0.018)),
+    rgb(14 28 44 / 0.76);
+  box-shadow: inset -1px 0 0 rgb(255 255 255 / 0.04);
+  backdrop-filter: blur(26px);
+  -webkit-backdrop-filter: blur(26px);
+}
+
+.lumen-toolbar {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.045), rgb(255 255 255 / 0.016)),
+    rgb(7 18 31 / 0.42);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { samplePhotos } from "../data/photos";
 import type { PhotoItem } from "../types";
+import { applyMediaBase } from "./mediaUrls";
 import {
   isLumenHost,
   lumenCall,
@@ -41,7 +41,8 @@ function mapSnapshot(snapshot: WebGallerySnapshot): {
 }
 
 export function useLumenLibrary() {
-  const host = isLumenHost();
+  const [host, setHost] = useState(() => isLumenHost());
+  const [hostChecked, setHostChecked] = useState(() => isLumenHost());
   const [status, setStatus] = useState<WebStatusDto | null>(null);
   const [gallery, setGallery] = useState<WebGallerySnapshot | null>(null);
   const [folders, setFolders] = useState<WebFolderDto[]>([]);
@@ -59,6 +60,31 @@ export function useLumenLibrary() {
 
   const galleryQueryRef = useRef(galleryQuery);
   galleryQueryRef.current = galleryQuery;
+
+  useEffect(() => {
+    if (host) {
+      setHostChecked(true);
+      return;
+    }
+
+    const syncHost = () => {
+      if (isLumenHost()) {
+        setHost(true);
+        setHostChecked(true);
+      }
+    };
+
+    syncHost();
+    window.addEventListener("lumen:hostReady", syncHost);
+    const interval = window.setInterval(syncHost, 100);
+    const timeout = window.setTimeout(() => setHostChecked(true), 1400);
+
+    return () => {
+      window.removeEventListener("lumen:hostReady", syncHost);
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [host]);
 
   const loadGallery = useCallback(
     async (query: GalleryQuery = galleryQuery) => {
@@ -88,7 +114,10 @@ export function useLumenLibrary() {
   useEffect(() => {
     if (!host) return;
     void refresh();
-    const offStatus = onLumenEvent<WebStatusDto>("status", setStatus);
+    const offStatus = onLumenEvent<WebStatusDto>("status", (next) => {
+      applyMediaBase(next.mediaBaseUrl);
+      setStatus(next);
+    });
     const offLibrary = onLumenEvent("libraryUpdated", () => {
       void (async () => {
         const [nextFolders, nextGallery] = await Promise.all([
@@ -151,13 +180,14 @@ export function useLumenLibrary() {
   const mapped = useMemo(() => {
     if (gallery) return mapSnapshot(gallery);
     return {
-      photos: host ? [] : samplePhotos,
-      sections: host ? [] : [{ title: "Demo", photos: samplePhotos }],
+      photos: [],
+      sections: [],
     };
-  }, [gallery, host]);
+  }, [gallery]);
 
   return {
     host,
+    hostChecked,
     loading,
     status,
     folders,

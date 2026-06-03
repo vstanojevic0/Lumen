@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Copy, Flag, Star } from "lucide-react";
 import { buildPreviewStyle } from "../lib/filters";
-import { getMediaBase, mediaPreviewUrl } from "../lumen/mediaUrls";
+import { mediaPreviewUrl } from "../lumen/mediaUrls";
+import { useMediaBase } from "../lumen/useMediaBase";
 import type { AspectRatio, EditState, PhotoItem } from "../types";
 import { Filmstrip } from "./Filmstrip";
 
@@ -41,20 +42,31 @@ export function EditingCanvas({
 }: EditingCanvasProps) {
   const { imageStyle, warmOverlay, coolOverlay, tintOverlay } = buildPreviewStyle(edits);
   const scale = zoom / 100;
+  const mediaBase = useMediaBase();
   const displaySrc =
-    photo.path && getMediaBase() ? mediaPreviewUrl(photo.path) : photo.src;
+    photo.path && mediaBase ? mediaPreviewUrl(photo.path, mediaBase) : photo.src;
+  const waitingForHost = Boolean(photo.path) && !mediaBase;
   const [previewReady, setPreviewReady] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
 
   useEffect(() => {
     setPreviewReady(false);
-  }, [photo.path]);
+    setPreviewFailed(false);
+  }, [photo.path, photo.src, mediaBase]);
 
-  const isLoading = Boolean(displaySrc) && !previewReady;
+  useEffect(() => {
+    if (!displaySrc || previewReady || previewFailed) return;
+    const t = window.setTimeout(() => setPreviewFailed(true), 15000);
+    return () => window.clearTimeout(t);
+  }, [displaySrc, previewFailed, previewReady]);
+
+  const isLoading =
+    waitingForHost || (Boolean(displaySrc) && !previewReady && !previewFailed);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-[#060910]">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-transparent">
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4">
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-9 py-7">
           <div
             className="flex max-h-full max-w-full items-center justify-center transition-transform duration-150 ease-out"
             style={{
@@ -63,16 +75,24 @@ export function EditingCanvas({
             }}
           >
             <div
-              className={`relative inline-flex max-h-full max-w-full items-center justify-center overflow-hidden rounded-lg shadow-2xl shadow-black/50 ${
+              className={`relative inline-flex max-h-full max-w-full items-center justify-center overflow-hidden rounded-sm border border-white/18 bg-black/25 shadow-2xl shadow-black/55 ${
                 aspectClass(edits.aspectRatio)
               } ${edits.cropMode ? "ring-1 ring-white/20" : ""}`}
             >
-              {isLoading ? (
+              {previewFailed ? (
+                <div className="flex h-[min(60vh,480px)] w-[min(80vw,640px)] min-h-[200px] min-w-[280px] flex-col items-center justify-center rounded-lg bg-white/5 px-8 text-center">
+                  <span className="text-sm font-medium text-white/60">Preview unavailable</span>
+                  <span className="mt-1 text-xs text-white/35">{photo.title}</span>
+                </div>
+              ) : isLoading ? (
                 <div className="flex h-[min(60vh,480px)] w-[min(80vw,640px)] min-h-[200px] min-w-[280px] items-center justify-center rounded-lg bg-white/5">
-                  <span className="text-sm text-white/40">Loading preview…</span>
+                  <span className="text-sm text-white/40">
+                    {waitingForHost ? "Connecting to desktop…" : "Loading preview…"}
+                  </span>
                 </div>
               ) : (
                 <img
+                  key={displaySrc}
                   src={displaySrc}
                   alt={photo.title}
                   className="block max-h-[min(72vh,720px)] max-w-full object-contain"
@@ -80,10 +100,13 @@ export function EditingCanvas({
                   draggable={false}
                   decoding="async"
                   onLoad={() => setPreviewReady(true)}
-                  onError={() => setPreviewReady(false)}
+                  onError={() => {
+                    setPreviewReady(false);
+                    setPreviewFailed(true);
+                  }}
                 />
               )}
-              {!isLoading ? (
+              {previewReady ? (
                 <>
                   <div className="pointer-events-none absolute inset-0" style={warmOverlay} />
                   <div className="pointer-events-none absolute inset-0" style={coolOverlay} />
@@ -91,8 +114,8 @@ export function EditingCanvas({
                 </>
               ) : null}
 
-              {edits.cropMode && !isLoading ? (
-                <div className="pointer-events-none absolute inset-4 border-2 border-dashed border-[#3b9bff]/80">
+              {edits.cropMode && previewReady ? (
+                <div className="pointer-events-none absolute inset-4 border-2 border-dashed border-[#75c9a3]/85">
                   <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
                     {Array.from({ length: 9 }).map((_, i) => (
                       <div key={i} className="border border-white/15" />
@@ -104,7 +127,7 @@ export function EditingCanvas({
           </div>
         </div>
 
-        <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#0a0e14]/90 px-3 py-2 shadow-lg backdrop-blur">
+        <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#132235]/82 px-3 py-2 shadow-lg shadow-black/30 backdrop-blur">
           <button
             type="button"
             onClick={onToggleFavorite}

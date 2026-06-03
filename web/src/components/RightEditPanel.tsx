@@ -1,4 +1,4 @@
-import { RotateCcw } from "lucide-react";
+import { Download, RotateCcw, X } from "lucide-react";
 import { presets, type PresetId } from "../lib/presets";
 import type { AspectRatio, EditState, PhotoItem } from "../types";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -26,8 +26,8 @@ function HistogramGraphic() {
       <svg viewBox="0 0 200 64" className="h-full w-full" preserveAspectRatio="none">
         <defs>
           <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b9bff" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#3b9bff" stopOpacity="0.1" />
+            <stop offset="0%" stopColor="#75c9a3" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#6fb7ff" stopOpacity="0.12" />
           </linearGradient>
         </defs>
         {bars.map((h, i) => (
@@ -54,12 +54,12 @@ function ToneCurveCard() {
         <path
           d="M 8 72 Q 40 60 70 35 T 112 12"
           fill="none"
-          stroke="#3b9bff"
+          stroke="#75c9a3"
           strokeWidth="2"
         />
-        <circle cx="8" cy="72" r="3" fill="#3b9bff" />
-        <circle cx="70" cy="35" r="3" fill="#7eb8ff" />
-        <circle cx="112" cy="12" r="3" fill="#3b9bff" />
+        <circle cx="8" cy="72" r="3" fill="#6fb7ff" />
+        <circle cx="70" cy="35" r="3" fill="#75c9a3" />
+        <circle cx="112" cy="12" r="3" fill="#e0a96d" />
       </svg>
     </div>
   );
@@ -78,12 +78,30 @@ export function RightEditPanel({
   const ratios: AspectRatio[] = ["free", "1:1", "4:3", "16:9"];
 
   return (
-    <aside className="glass flex h-full w-[300px] shrink-0 flex-col border-r border-white/8">
-      <div className="border-b border-white/8 px-4 py-3">
-        <div className="truncate text-sm font-medium text-white/90">{photo.title}</div>
-        <div className="mt-0.5 truncate text-[11px] text-white/40">Edit &amp; develop</div>
+    <aside className="glass flex h-full w-[344px] shrink-0 flex-col border-l border-white/8 p-3">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="rounded-full bg-white/6 p-1 text-xs font-medium text-white/62">
+          <button type="button" className="rounded-full px-5 py-1.5 text-white/55">
+            Info
+          </button>
+          <button type="button" className="rounded-full bg-white/10 px-5 py-1.5 text-white">
+            Edit
+          </button>
+        </div>
+        <button
+          type="button"
+          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/6 text-white/55"
+          title="Close"
+        >
+          <X size={18} />
+        </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
+
+      <div className="mb-3 px-1">
+        <div className="truncate text-sm font-semibold text-white/92">{photo.title}</div>
+        <div className="mt-0.5 truncate text-[11px] text-white/42">Edit &amp; develop</div>
+      </div>
+      <div className="flex-1 space-y-2.5 overflow-y-auto pr-1">
         <CollapsibleSection title="Histogram" defaultOpen>
           <HistogramGraphic />
           <div className="grid grid-cols-2 gap-2 text-[11px] text-white/55">
@@ -205,7 +223,7 @@ export function RightEditPanel({
             onClick={() => onChange("cropMode", !edits.cropMode)}
             className={`w-full rounded-lg border py-2 text-xs font-medium transition ${
               edits.cropMode
-                ? "border-[#3b9bff] bg-[#3b9bff]/20 text-white"
+                ? "border-[#75c9a3] bg-[#75c9a3]/18 text-white"
                 : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
             }`}
           >
@@ -219,7 +237,7 @@ export function RightEditPanel({
                 onClick={() => onChange("aspectRatio", r)}
                 className={`rounded-md border px-2 py-1 text-[10px] ${
                   edits.aspectRatio === r
-                    ? "border-[#3b9bff] bg-[#3b9bff]/20 text-white"
+                    ? "border-[#75c9a3] bg-[#75c9a3]/18 text-white"
                     : "border-white/10 text-white/55 hover:bg-white/8"
                 }`}
               >
@@ -277,9 +295,10 @@ export function RightEditPanel({
           <button
             type="button"
             onClick={onExport}
-            className="w-full rounded-xl bg-[#3b9bff] py-2.5 text-sm font-medium text-white shadow-lg shadow-[#3b9bff]/20 hover:bg-[#4aa5ff]"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#087bff] py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#087bff]/25 hover:bg-[#1e88ff]"
           >
-            Export…
+            <Download size={15} />
+            Export...
           </button>
         </CollapsibleSection>
       </div>

@@ -1,5 +1,12 @@
 import type { PhotoItem } from "../types";
 
+export function applyMediaBase(url: string | null | undefined) {
+  if (!url) return;
+  const normalized = url.endsWith("/") ? url : `${url}/`;
+  (window as unknown as { __lumenMediaBase?: string }).__lumenMediaBase = normalized;
+  window.dispatchEvent(new CustomEvent("lumen:mediaReady"));
+}
+
 export function getMediaBase(): string | null {
   const base = (window as unknown as { __lumenMediaBase?: string }).__lumenMediaBase;
   if (!base) return null;
@@ -13,16 +20,16 @@ export function encodePhotoPath(path: string): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-export function mediaThumbUrl(path: string): string {
-  const base = getMediaBase();
-  if (!base) return "";
-  return `${base}media/thumb?p=${encodeURIComponent(encodePhotoPath(path))}`;
+export function mediaThumbUrl(path: string, base?: string | null): string {
+  const root = base ?? getMediaBase();
+  if (!root) return "";
+  return `${root}media/thumb?p=${encodeURIComponent(encodePhotoPath(path))}`;
 }
 
-export function mediaPreviewUrl(path: string): string {
-  const base = getMediaBase();
-  if (!base) return "";
-  return `${base}media/preview?p=${encodeURIComponent(encodePhotoPath(path))}`;
+export function mediaPreviewUrl(path: string, base?: string | null): string {
+  const root = base ?? getMediaBase();
+  if (!root) return "";
+  return `${root}media/preview?p=${encodeURIComponent(encodePhotoPath(path))}`;
 }
 
 /** Keep filmstrip bounded so we do not decode thousands of thumbnails at once. */

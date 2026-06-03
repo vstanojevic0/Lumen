@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.Runtime.InteropServices;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
@@ -71,14 +70,19 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     public void AttachTopLevel(TopLevel topLevel) => _topLevel = topLevel;
 
     public WebStatusDto GetWebStatus() =>
-        new(TotalPhotoCount, StatusText, IsBusy, GetFavoritePathSet().Count);
+        new(
+            TotalPhotoCount,
+            StatusText,
+            IsBusy,
+            GetFavoritePathSet().Count,
+            WebUiSource.MediaBaseUri?.ToString());
 
     public WebGallerySnapshot GetWebGallerySnapshot(string? folderPath = null, bool favoritesOnly = false)
     {
         var favorites = GetFavoritePathSet();
         var sections = BuildGallerySections(folderPath, favoritesOnly, favorites)
             .Select(s => new WebGallerySectionDto(
-                s.HeaderText,
+                FormatWebSectionTitle(s.HeaderText),
                 s.Photos.Select(p => new WebPhotoDto(
                     p.AbsolutePath,
                     p.Caption,
@@ -121,11 +125,20 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+    private static string FormatWebSectionTitle(string headerText)
+    {
+        var suffixStart = headerText.LastIndexOf(" (", StringComparison.Ordinal);
+        if (suffixStart > 0 && headerText.EndsWith(" Photos)", StringComparison.Ordinal))
+            return headerText[..suffixStart];
+
+        return headerText;
+    }
+
     private static WebFolderDto MapWebFolder(FolderBrowseNode node) =>
         new(
             node.AbsolutePath,
             node.DisplayName,
-            node.PhotoCountDirect,
+            node.PhotoCountTotal,
             node.Children.Select(MapWebFolder).ToList());
 
     public Task RequestRescanAsync() => ScanLibraryAsync();
@@ -325,7 +338,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         SelectedFolder = FolderList.FirstOrDefault(f =>
             string.Equals(f.AbsolutePath, folderPath, StringComparison.OrdinalIgnoreCase));
 
-        var count = _index.GetInFolder(folderPath, recursive: false).Count;
+        var count = _index.GetInFolder(folderPath, recursive: true).Count;
         StatusText = $"{CenterTitle} · {count:N0} photos";
         _ = RefreshPhotoTimelineAsync();
     }
@@ -477,7 +490,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
     private IReadOnlyList<string> BuildContextPhotoPaths()
     {
         if (IsFolderPhotosMode && !string.IsNullOrEmpty(OpenFolderPath))
-            return _index.GetInFolder(OpenFolderPath, recursive: false).Select(p => p.AbsolutePath).ToList();
+            return _index.GetInFolder(OpenFolderPath, recursive: true).Select(p => p.AbsolutePath).ToList();
 
         return _index.GetOrderedPhotoPaths(null);
     }
@@ -698,29 +711,22 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         bool favoritesOnly = false,
         HashSet<string>? favoritePaths = null)
     {
-        var culture = CultureInfo.GetCultureInfo("en-US");
         var query = SearchQuery.Trim();
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var sections = new List<MonthSectionViewModel>();
         favoritePaths ??= favoritesOnly ? GetFavoritePathSet() : [];
 
-        var useMonthHeaders = string.IsNullOrEmpty(folderPath);
-        IEnumerable<DateHierarchyBucket> buckets = useMonthHeaders
-            ? _index.GetPhotosGroupedByDate(null, DateBucketGranularity.Month)
-            : GroupFolderPhotosByDate(folderPath!);
+        var buckets = _index.GetPhotosGroupedByFolder(folderPath)
+            .OrderByDescending(b => b.Photos.Max(p => p.CapturedAt ?? DateTimeOffset.MinValue))
+            .ThenBy(b => b.FolderPath, StringComparer.OrdinalIgnoreCase);
 
         foreach (var bucket in buckets)
         {
-            var title = bucket.Year == 0
-                ? "No capture date"
-                : useMonthHeaders
-                    ? new DateTime(bucket.Year, bucket.Month ?? 1, 1).ToString("MMMM yyyy", culture)
-                    : new DateTime(bucket.Year, bucket.Month ?? 1, bucket.Day ?? 1)
-                        .ToString("MMMM dd, yyyy", culture);
-
             var groupTiles = new List<PhotoTileViewModel>();
 
-            foreach (var photo in bucket.Photos)
+            foreach (var photo in bucket.Photos
+                         .OrderByDescending(p => p.CapturedAt ?? DateTimeOffset.MinValue)
+                         .ThenBy(p => p.AbsolutePath, StringComparer.OrdinalIgnoreCase))
             {
                 if (!seenPaths.Add(photo.AbsolutePath))
                     continue;
@@ -739,6 +745,7 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
             if (groupTiles.Count == 0)
                 continue;
 
+            var title = FormatFolderSectionTitle(bucket.FolderPath, folderPath);
             var header = $"{title} ({groupTiles.Count:N0} Photos)";
             sections.Add(new MonthSectionViewModel(header, groupTiles));
         }
@@ -746,36 +753,27 @@ public partial class MainWindowViewModel : ObservableObject, IDisposable
         return sections;
     }
 
-    private IEnumerable<DateHierarchyBucket> GroupFolderPhotosByDate(string folderPath)
+    private string FormatFolderSectionTitle(string directoryPath, string? selectedRoot)
     {
-        var photos = _index.GetInFolder(folderPath, recursive: false);
-        return photos
-            .GroupBy(p =>
-            {
-                if (p.CapturedAt is null)
-                    return (int?)null;
-                var local = p.CapturedAt.Value.ToLocalTime();
-                return local.Year * 10000 + local.Month * 100 + local.Day;
-            })
-            .OrderByDescending(g => g.Key ?? int.MinValue)
-            .Select(g =>
-            {
-                if (g.Key is null)
-                {
-                    return new DateHierarchyBucket(
-                        DateBucketGranularity.Day, 0, null, null,
-                        g.OrderBy(p => p.AbsolutePath, StringComparer.OrdinalIgnoreCase).ToList());
-                }
+        if (string.IsNullOrWhiteSpace(selectedRoot))
+            return FormatFolderTitle(directoryPath);
 
-                var first = g.First();
-                var local = first.CapturedAt!.Value.ToLocalTime();
-                return new DateHierarchyBucket(
-                    DateBucketGranularity.Day,
-                    local.Year,
-                    local.Month,
-                    local.Day,
-                    g.OrderByDescending(p => p.CapturedAt).ThenBy(p => p.AbsolutePath, StringComparer.OrdinalIgnoreCase).ToList());
-            });
+        selectedRoot = Path.TrimEndingDirectorySeparator(selectedRoot);
+        directoryPath = Path.TrimEndingDirectorySeparator(directoryPath);
+
+        if (string.Equals(directoryPath, selectedRoot, StringComparison.OrdinalIgnoreCase))
+            return FormatFolderTitle(directoryPath);
+
+        if (directoryPath.Length > selectedRoot.Length &&
+            directoryPath.StartsWith(selectedRoot, StringComparison.OrdinalIgnoreCase) &&
+            directoryPath[selectedRoot.Length] == Path.DirectorySeparatorChar)
+        {
+            var rel = Path.GetRelativePath(selectedRoot, directoryPath);
+            if (!string.IsNullOrEmpty(rel) && rel != ".")
+                return rel.Replace(Path.DirectorySeparatorChar, '/');
+        }
+
+        return FormatFolderTitle(directoryPath);
     }
 
     private List<FolderAlbumViewModel> BuildFolderAlbums()

@@ -9,7 +9,7 @@ interface FilmstripProps {
 
 export function Filmstrip({ photos, selectedId, onSelect }: FilmstripProps) {
   return (
-    <div className="glass mx-4 mb-4 rounded-xl border border-white/8 p-2">
+    <div className="mx-8 mb-6 rounded-2xl border border-white/10 bg-[#132235]/72 p-2 shadow-xl shadow-black/25 backdrop-blur">
       <div className="flex gap-2 overflow-x-auto pb-1">
         {photos.map((photo) => {
           const selected = photo.id === selectedId;
@@ -18,10 +18,10 @@ export function Filmstrip({ photos, selectedId, onSelect }: FilmstripProps) {
               key={photo.id}
               type="button"
               onClick={() => onSelect(photo.id)}
-              className={`relative h-[72px] w-[96px] shrink-0 overflow-hidden rounded-lg transition ${
+              className={`relative h-[76px] w-[104px] shrink-0 overflow-hidden rounded-lg border transition ${
                 selected
-                  ? "ring-2 ring-[#3b9bff] ring-offset-2 ring-offset-[#0a0e14]"
-                  : "opacity-70 hover:opacity-100"
+                  ? "border-[#087bff] ring-2 ring-[#087bff] ring-offset-2 ring-offset-[#132235]"
+                  : "border-white/8 opacity-[0.76] hover:opacity-100"
               }`}
             >
               {photo.path ? (
@@ -31,7 +31,14 @@ export function Filmstrip({ photos, selectedId, onSelect }: FilmstripProps) {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <img src={photo.src} alt="" className="h-full w-full object-cover" />
+                <img
+                  src={photo.src}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.style.visibility = "hidden";
+                  }}
+                />
               )}
             </button>
           );

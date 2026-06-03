@@ -28,6 +28,7 @@ export interface WebStatusDto {
   statusText: string;
   isBusy: boolean;
   favoriteCount: number;
+  mediaBaseUrl?: string | null;
 }
 
 export type LibraryView = "all" | "favorites";
