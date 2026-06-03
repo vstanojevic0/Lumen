@@ -9,10 +9,11 @@ namespace Lumen.Services.Web;
 public sealed class WebMediaHandler
 {
     public const int ThumbMaxEdge = 180;
-    public const int PreviewMaxEdge = 960;
+    public const int PreviewMaxEdge = 1280;
 
     private const int MaxCacheEntries = 48;
     private const int MaxConcurrentDecodes = 2;
+    private static readonly TimeSpan DecodeTimeout = TimeSpan.FromSeconds(45);
 
     private readonly SemaphoreSlim _decodeGate = new(MaxConcurrentDecodes, MaxConcurrentDecodes);
     private readonly ConcurrentDictionary<string, byte[]> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -46,9 +47,12 @@ public sealed class WebMediaHandler
             if (_cache.TryGetValue(cacheKey, out cached))
                 return cached;
 
+            using var decodeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            decodeCts.CancelAfter(DecodeTimeout);
+
             var bytes = await Task.Run(
                 () => ImageLoader.TryEncodeThumbnailBytes(absolutePath, maxEdge),
-                cancellationToken).ConfigureAwait(false);
+                decodeCts.Token).ConfigureAwait(false);
 
             if (bytes is null || bytes.Length == 0)
                 return null;

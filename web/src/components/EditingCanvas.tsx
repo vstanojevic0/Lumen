@@ -79,33 +79,47 @@ export function EditingCanvas({
                 aspectClass(edits.aspectRatio)
               } ${edits.cropMode ? "ring-1 ring-white/20" : ""}`}
             >
-              {previewFailed ? (
-                <div className="flex h-[min(60vh,480px)] w-[min(80vw,640px)] min-h-[200px] min-w-[280px] flex-col items-center justify-center rounded-lg bg-white/5 px-8 text-center">
-                  <span className="text-sm font-medium text-white/60">Preview unavailable</span>
-                  <span className="mt-1 text-xs text-white/35">{photo.title}</span>
-                </div>
-              ) : isLoading ? (
-                <div className="flex h-[min(60vh,480px)] w-[min(80vw,640px)] min-h-[200px] min-w-[280px] items-center justify-center rounded-lg bg-white/5">
-                  <span className="text-sm text-white/40">
-                    {waitingForHost ? "Connecting to desktop…" : "Loading preview…"}
-                  </span>
-                </div>
-              ) : (
-                <img
-                  key={displaySrc}
-                  src={displaySrc}
-                  alt={photo.title}
-                  className="block max-h-[min(72vh,720px)] max-w-full object-contain"
-                  style={imageStyle}
-                  draggable={false}
-                  decoding="async"
-                  onLoad={() => setPreviewReady(true)}
-                  onError={() => {
-                    setPreviewReady(false);
-                    setPreviewFailed(true);
-                  }}
-                />
-              )}
+              <div className="relative flex min-h-[200px] min-w-[280px] items-center justify-center">
+                {previewFailed ? (
+                  <div className="flex h-[min(60vh,480px)] w-[min(80vw,640px)] flex-col items-center justify-center rounded-lg bg-white/5 px-8 text-center">
+                    <span className="text-sm font-medium text-white/60">Preview unavailable</span>
+                    <span className="mt-1 text-xs text-white/35">{photo.title}</span>
+                  </div>
+                ) : null}
+
+                {isLoading ? (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-[#060910]/90">
+                    <span className="text-sm text-white/40">
+                      {waitingForHost ? "Connecting to desktop…" : "Loading preview…"}
+                    </span>
+                  </div>
+                ) : null}
+
+                {displaySrc && !previewFailed ? (
+                  <img
+                    key={displaySrc}
+                    src={displaySrc}
+                    alt={photo.title}
+                    className={`block max-h-[min(72vh,720px)] max-w-full object-contain transition-opacity duration-200 ${
+                      previewReady ? "opacity-100" : "opacity-0"
+                    }`}
+                    style={imageStyle}
+                    draggable={false}
+                    decoding="async"
+                    onLoad={() => setPreviewReady(true)}
+                    onError={() => {
+                      setPreviewReady(false);
+                      setPreviewFailed(true);
+                    }}
+                  />
+                ) : null}
+
+                {!displaySrc && !previewFailed && !isLoading ? (
+                  <div className="flex h-[min(40vh,320px)] w-[min(60vw,480px)] items-center justify-center rounded-lg bg-white/5 text-sm text-white/40">
+                    No preview source
+                  </div>
+                ) : null}
+              </div>
               {previewReady ? (
                 <>
                   <div className="pointer-events-none absolute inset-0" style={warmOverlay} />
