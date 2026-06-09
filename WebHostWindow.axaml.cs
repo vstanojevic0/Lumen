@@ -1,8 +1,5 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using Lumen.Services.Catalog;
-using Lumen.Services.Scanning;
-using Lumen.Services.Settings;
 using Lumen.Services.Web;
 using Lumen.ViewModels;
 
@@ -10,28 +7,18 @@ namespace Lumen;
 
 public partial class WebHostWindow : Window
 {
-    private readonly MainWindowViewModel _viewModel;
+    private readonly LibraryViewModel _library;
     private readonly LumenWebBridge _bridge = new();
+    private bool _bridgeInitialized;
 
-    public WebHostWindow()
-        : this(new MainWindowViewModel(
-            new FileSystemPhotoScanner(),
-            new InMemoryLibraryIndex(),
-            new JsonAppSettingsStore()))
+    public WebHostWindow(LibraryViewModel library)
     {
-    }
-
-    public WebHostWindow(MainWindowViewModel viewModel)
-    {
-        _viewModel = viewModel;
+        _library = library;
         InitializeComponent();
-        DataContext = viewModel;
-        viewModel.AttachTopLevel(this);
+        library.AttachTopLevel(this);
         HostWebView.Source = WebUiSource.Resolve();
         Closed += (_, _) => _bridge.Detach();
     }
-
-    private bool _bridgeInitialized;
 
     private async void HostWebView_NavigationCompleted(object? sender, WebViewNavigationCompletedEventArgs e)
     {
@@ -39,20 +26,20 @@ public partial class WebHostWindow : Window
             return;
 
         _bridgeInitialized = true;
-        _bridge.Attach(HostWebView, _viewModel);
+        _bridge.Attach(HostWebView, _library);
         try
         {
             await _bridge.InitializeAsync().ConfigureAwait(true);
         }
         catch
         {
-            _viewModel.StatusText = WebUiSource.Hint;
+            _library.StatusText = WebUiSource.Hint;
         }
     }
 
     protected override async void OnLoaded(RoutedEventArgs e)
     {
         base.OnLoaded(e);
-        await _viewModel.InitializeAsync(this).ConfigureAwait(true);
+        await _library.InitializeAsync().ConfigureAwait(true);
     }
 }

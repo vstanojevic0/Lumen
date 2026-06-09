@@ -4,6 +4,5 @@
              RequestedThemeVariant="Dark">
   <Application.Styles>
     <FluentTheme />
-    <StyleInclude Source="avares://Lumen/Styles/AppStyles.axaml" />
   </Application.Styles>
 </Application>

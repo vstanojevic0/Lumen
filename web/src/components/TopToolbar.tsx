@@ -1,10 +1,8 @@
 import {
+  ArrowLeft,
   ChevronDown,
   Download,
-  LayoutGrid,
-  Maximize2,
   Redo2,
-  Search,
   Undo2,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -20,10 +18,8 @@ interface TopToolbarProps {
   onUndo: () => void;
   onRedo: () => void;
   onExport: () => void;
+  onBack?: () => void;
   statusText?: string;
-  viewLabel: string;
-  searchQuery: string;
-  onSearchQueryChange: (query: string) => void;
 }
 
 export function TopToolbar({
@@ -36,88 +32,62 @@ export function TopToolbar({
   onUndo,
   onRedo,
   onExport,
+  onBack,
   statusText,
-  viewLabel,
-  searchQuery,
-  onSearchQueryChange,
 }: TopToolbarProps) {
   return (
-    <header className="lumen-toolbar flex h-[112px] shrink-0 flex-col border-b border-white/8 px-6 py-3">
-      <div className="flex min-w-0 items-center gap-4">
-        <div className="relative w-[420px] max-w-[42vw]">
-          <Search size={17} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/45" />
-          <input
-            type="search"
-            placeholder="Search your photos"
-            value={searchQuery}
-            onChange={(e) => onSearchQueryChange(e.target.value)}
-            className="h-10 w-full rounded-2xl border border-white/7 bg-white/8 pr-12 pl-11 text-sm text-white outline-none placeholder:text-white/42 focus:border-[#2f8cff]/60 focus:bg-white/10"
-          />
-          <kbd className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-white/42">
-            ⌘F
-          </kbd>
+    <header className="lumen-toolbar flex h-[68px] shrink-0 items-center gap-3 border-b border-white/8 px-6 py-3">
+      <ModeSelect mode={mode} onModeChange={onModeChange} />
+
+      {mode === "library" ? (
+        <div className="ml-auto">
+          <ZoomControl zoom={zoom} onZoomChange={onZoomChange} />
         </div>
-
-        {statusText ? (
-          <span className="min-w-0 flex-1 truncate text-xs text-white/38" title={statusText}>
-            {statusText}
-          </span>
-        ) : (
-          <span className="flex-1" />
-        )}
-
-        {mode === "edit" ? (
-          <button
-            type="button"
-            onClick={onExport}
-            className="flex items-center gap-2 rounded-xl bg-[#087bff] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#087bff]/25 hover:bg-[#1e88ff]"
-          >
-            <Download size={16} />
-            Export...
-          </button>
-        ) : null}
-      </div>
-
-      <div className="mt-4 flex min-w-0 items-center gap-3">
-        <ModeSelect mode={mode} onModeChange={onModeChange} />
-
-        {mode === "library" ? (
-          <>
-            <div className="flex h-10 items-center gap-2 rounded-xl border border-white/7 bg-white/9 px-3 text-sm font-medium text-white/82">
-              <LayoutGrid size={16} className="text-white/62" />
-              <span className="max-w-[240px] truncate">{viewLabel}</span>
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <Segmented>
-                <ToolbarBtn active title="Grid view">
-                  <LayoutGrid size={17} />
-                </ToolbarBtn>
-              </Segmented>
-              <ZoomControl zoom={zoom} onZoomChange={onZoomChange} />
-              <ToolbarBtn title="Fit">
-                <Maximize2 size={16} />
+      ) : (
+        <>
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex h-10 items-center gap-2 rounded-xl border border-white/7 bg-white/9 px-3.5 text-sm font-medium text-white/88 transition hover:border-white/14 hover:bg-white/12 hover:text-white"
+              title="Back to library (Esc)"
+            >
+              <ArrowLeft size={16} className="text-white/70" />
+              <span>All Photos</span>
+            </button>
+          ) : null}
+          <div className="ml-auto flex items-center gap-2">
+            <Segmented>
+              <ToolbarBtn onClick={onUndo} disabled={!canUndo} title="Undo">
+                <Undo2 size={16} />
               </ToolbarBtn>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="ml-auto flex items-center gap-2">
-              <Segmented>
-                <ToolbarBtn onClick={onUndo} disabled={!canUndo} title="Undo">
-                  <Undo2 size={16} />
-                </ToolbarBtn>
-                <ToolbarBtn onClick={onRedo} disabled={!canRedo} title="Redo">
-                  <Redo2 size={16} />
-                </ToolbarBtn>
-              </Segmented>
-              <ZoomControl zoom={zoom} onZoomChange={onZoomChange} />
-              <ToolbarBtn title="Fit to screen">
-                <Maximize2 size={16} />
+              <ToolbarBtn onClick={onRedo} disabled={!canRedo} title="Redo">
+                <Redo2 size={16} />
               </ToolbarBtn>
-            </div>
-          </>
-        )}
-      </div>
+            </Segmented>
+            <ZoomControl zoom={zoom} onZoomChange={onZoomChange} />
+            <button
+              type="button"
+              onClick={onExport}
+              className="flex items-center gap-2 rounded-xl bg-[#087bff] px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#087bff]/25 hover:bg-[#1e88ff]"
+            >
+              <Download size={16} />
+              Export...
+            </button>
+          </div>
+        </>
+      )}
+
+      {statusText ? (
+        <span
+          className={`min-w-0 truncate text-xs text-white/38 ${
+            mode === "library" ? "ml-3 max-w-[28vw]" : "ml-3 max-w-[18vw]"
+          }`}
+          title={statusText}
+        >
+          {statusText}
+        </span>
+      ) : null}
     </header>
   );
 }

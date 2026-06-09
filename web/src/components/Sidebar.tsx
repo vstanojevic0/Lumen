@@ -1,50 +1,66 @@
 import {
+  ChevronDown,
   Folder,
-  FolderOpen,
   Images,
   Plus,
   type LucideIcon,
 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { normalizeFolderPath } from "../lumen/folderScroll";
+import {
+  buildSidebarFromSections,
+  folderPathsEqual,
+  type GallerySectionLike,
+} from "../lumen/sidebarFolderGroups";
 import type { LibraryView, WebFolderDto } from "../lumen/hostBridge";
 
 export function Sidebar({
   totalCount = 0,
-  folders = [],
+  sections = [],
+  scanRoots = [],
   view = "all",
-  selectedFolderPath = null,
+  activeFolderPath = null,
   host = false,
   onSelectAll,
   onSelectFolder,
   onAddFolder,
 }: {
   totalCount?: number;
-  folders?: WebFolderDto[];
+  sections?: GallerySectionLike[];
+  scanRoots?: WebFolderDto[];
   view?: LibraryView;
-  selectedFolderPath?: string | null;
+  activeFolderPath?: string | null;
   host?: boolean;
   onSelectAll?: () => void;
   onSelectFolder?: (path: string) => void;
   onAddFolder?: () => void;
 }) {
-  const allActive = view === "all" && !selectedFolderPath;
+  const [foldersOpen, setFoldersOpen] = useState(true);
+  const folderButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const allActive = view === "all";
+  const folderGroups = useMemo(
+    () => buildSidebarFromSections(sections, scanRoots),
+    [sections, scanRoots],
+  );
+
+  useEffect(() => {
+    if (!activeFolderPath) return;
+    const key = normalizeFolderPath(activeFolderPath).toLowerCase();
+    const button = folderButtonRefs.current.get(key);
+    button?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [activeFolderPath]);
 
   return (
     <aside className="lumen-sidebar flex h-full w-[284px] shrink-0 flex-col border-r border-white/8">
-      <div className="px-5 pb-4 pt-5">
-        <div className="mb-7 flex gap-2">
-          <span className="h-3.5 w-3.5 rounded-full bg-[#ff5f57]" />
-          <span className="h-3.5 w-3.5 rounded-full bg-[#febc2e]" />
-          <span className="h-3.5 w-3.5 rounded-full bg-[#28c840]" />
-        </div>
-
-        <div className="flex items-center gap-3">
+      <div className="px-4 pb-3 pt-5">
+        <div className="mb-5 flex items-center gap-3 px-1">
           <div className="h-10 w-10 rounded-full bg-[radial-gradient(circle_at_50%_38%,#ffd36f_0_18%,#ff6f61_19%_32%,#2f8cff_33%_58%,#183552_59%)] shadow-lg shadow-[#2f8cff]/25" />
           <div className="text-[28px] font-bold leading-none tracking-tight text-white">Lumen</div>
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        <nav className="space-y-1">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+        <nav>
           <NavButton
             icon={Images}
             label="All Photos"
@@ -54,38 +70,85 @@ export function Sidebar({
           />
         </nav>
 
-        <div className="mt-5 mb-2 flex items-center justify-between px-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-white/42">
-            Folders
-          </span>
-          {host && onAddFolder ? (
+        <div className="mt-4">
+          <div className="lumen-sidebar-section-header">
             <button
               type="button"
-              onClick={onAddFolder}
-              className="flex h-6 w-6 items-center justify-center rounded-lg text-white/60 hover:bg-white/8 hover:text-white"
-              title="Add folder"
+              onClick={() => setFoldersOpen((open) => !open)}
+              className="flex min-w-0 flex-1 items-center gap-2"
             >
-              <Plus size={16} />
+              <ChevronDown
+                size={14}
+                className={`shrink-0 text-[#75c9a3] transition-transform duration-200 ${
+                  foldersOpen ? "" : "-rotate-90"
+                }`}
+              />
+              <span className="truncate text-left">Folders</span>
             </button>
+            {host && onAddFolder ? (
+              <button
+                type="button"
+                onClick={onAddFolder}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-white/55 hover:bg-white/8 hover:text-white"
+                title="Add folder"
+              >
+                <Plus size={15} />
+              </button>
+            ) : null}
+          </div>
+
+          {foldersOpen ? (
+            <div className="mt-1">
+              {folderGroups.length > 0 ? (
+                folderGroups.map((group, index) => (
+                  <div key={group.key}>
+                    {index > 0 ? <div className="lumen-sidebar-year-rule" /> : null}
+                    <div className="lumen-sidebar-year-label">{group.label}</div>
+                    <div className="space-y-px">
+                      {group.folders.map((folder) => {
+                        const active = folderPathsEqual(folder.path, activeFolderPath);
+                        const refKey = normalizeFolderPath(folder.path).toLowerCase();
+                        return (
+                          <button
+                            key={folder.path}
+                            ref={(element) => {
+                              if (element) folderButtonRefs.current.set(refKey, element);
+                              else folderButtonRefs.current.delete(refKey);
+                            }}
+                            type="button"
+                            onClick={() => onSelectFolder?.(folder.path)}
+                            className={`lumen-sidebar-folder ${active ? "lumen-sidebar-folder--active" : ""}`}
+                            title={folder.title}
+                          >
+                            <Folder
+                              size={16}
+                              className={`shrink-0 ${active ? "text-[#f0d060]" : "text-[#d4b84a]/88"}`}
+                              fill={active ? "currentColor" : "none"}
+                            />
+                            <span className="min-w-0 flex-1 truncate text-left uppercase tracking-[0.06em]">
+                              {folder.title}
+                            </span>
+                            <span className="shrink-0 tabular-nums text-white/42">
+                              ({folder.photoCount.toLocaleString()})
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              ) : host ? (
+                <p className="px-3 py-2 text-xs text-white/35">No folders with photos yet.</p>
+              ) : null}
+            </div>
           ) : null}
         </div>
-
-        {folders.length > 0 ? (
-          <FolderTree
-            nodes={folders}
-            selectedFolderPath={selectedFolderPath}
-            onSelectFolder={onSelectFolder}
-          />
-        ) : host ? (
-          <p className="px-2 text-xs text-white/35">No folders with photos yet.</p>
-        ) : null}
       </div>
 
-      <div className="px-5 pb-5 pt-4">
-        <div className="mb-3 text-xs text-white/55">Local desktop library</div>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white/42">{totalCount.toLocaleString()} photos indexed</span>
-        </div>
+      <div className="border-t border-white/6 px-4 py-3">
+        <span className="text-[11px] text-white/38">
+          {totalCount.toLocaleString()} photos indexed
+        </span>
       </div>
     </aside>
   );
@@ -108,77 +171,20 @@ function NavButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[13px] transition ${
-        active
-          ? "bg-[#2f8cff]/35 text-white shadow-[inset_0_0_0_1px_rgb(111_183_255_/_0.16)]"
-          : "text-white/73 hover:bg-white/8 hover:text-white"
-      }`}
+      className={`lumen-sidebar-folder ${active ? "lumen-sidebar-folder--active" : ""}`}
     >
-      <Icon size={17} className={active ? "text-white" : "text-white/58"} />
+      <Icon size={16} className={active ? "text-white" : "text-white/55"} />
       <span className="min-w-0 flex-1 truncate text-left">{label}</span>
       {count !== undefined ? (
-        <span className="text-xs tabular-nums text-white/52">
-          {typeof count === "number" ? count.toLocaleString() : count}
+        <span className="shrink-0 tabular-nums text-white/42">
+          {typeof count === "number" ? `(${count.toLocaleString()})` : count}
         </span>
       ) : null}
     </button>
   );
 }
 
-function FolderTree({
-  nodes,
-  selectedFolderPath,
-  onSelectFolder,
-  depth = 0,
-}: {
-  nodes: WebFolderDto[];
-  selectedFolderPath: string | null;
-  onSelectFolder?: (path: string) => void;
-  depth?: number;
-}) {
-  return (
-    <div className="space-y-1">
-      {nodes.map((node) => {
-        const active = selectedFolderPath === node.path;
-        const hasChildren = node.children.length > 0;
-        return (
-          <div key={node.path}>
-            <button
-              type="button"
-              onClick={() => onSelectFolder?.(node.path)}
-              className={`flex w-full items-center gap-2 rounded-xl py-1.5 text-[13px] transition ${
-                active
-                  ? "bg-white/12 text-white"
-                  : "text-white/68 hover:bg-white/8 hover:text-white"
-              }`}
-              style={{ paddingLeft: 12 + depth * 16, paddingRight: 10 }}
-            >
-              {hasChildren ? (
-                <FolderOpen size={16} className="shrink-0 text-white/48" />
-              ) : (
-                <Folder size={16} className="shrink-0 text-white/48" />
-              )}
-              <span className="min-w-0 flex-1 truncate text-left">{node.title}</span>
-              <span className="text-xs tabular-nums text-white/38">
-                {node.photoCount.toLocaleString()}
-              </span>
-            </button>
-            {hasChildren ? (
-              <FolderTree
-                nodes={node.children}
-                selectedFolderPath={selectedFolderPath}
-                onSelectFolder={onSelectFolder}
-                depth={depth + 1}
-              />
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function formatCount(value: number, host: boolean) {
-  if (value > 0) return value.toLocaleString();
-  return host ? "0" : undefined;
+  if (value > 0) return value;
+  return host ? 0 : undefined;
 }

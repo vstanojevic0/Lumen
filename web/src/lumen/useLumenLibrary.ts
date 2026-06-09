@@ -14,7 +14,7 @@ import {
 
 function mapSnapshot(snapshot: WebGallerySnapshot): {
   photos: PhotoItem[];
-  sections: { title: string; photos: PhotoItem[] }[];
+  sections: { title: string; folderPath: string; photos: PhotoItem[] }[];
 } {
   const photos: PhotoItem[] = [];
   const sections = snapshot.sections.map((section) => {
@@ -34,7 +34,11 @@ function mapSnapshot(snapshot: WebGallerySnapshot): {
       photos.push(item);
       return item;
     });
-    return { title: section.title, photos: sectionPhotos };
+    return {
+      title: section.title,
+      folderPath: section.folderPath,
+      photos: sectionPhotos,
+    };
   });
 
   return { photos, sections };
@@ -48,14 +52,15 @@ export function useLumenLibrary() {
   const [folders, setFolders] = useState<WebFolderDto[]>([]);
   const [loading, setLoading] = useState(host);
   const [view, setView] = useState<LibraryView>("all");
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
+  const [activeFolderPath, setActiveFolderPath] = useState<string | null>(null);
+  const [folderJumpTarget, setFolderJumpTarget] = useState<string | null>(null);
 
   const galleryQuery = useMemo<GalleryQuery>(
     () => ({
-      folderPath: selectedFolderPath,
+      folderPath: null,
       favoritesOnly: view === "favorites",
     }),
-    [selectedFolderPath, view],
+    [view],
   );
 
   const galleryQueryRef = useRef(galleryQuery);
@@ -141,17 +146,23 @@ export function useLumenLibrary() {
 
   const selectAllPhotos = useCallback(() => {
     setView("all");
-    setSelectedFolderPath(null);
+    setFolderJumpTarget("__top__");
   }, []);
 
   const selectFavorites = useCallback(() => {
     setView("favorites");
-    setSelectedFolderPath(null);
+    setActiveFolderPath(null);
+    setFolderJumpTarget(null);
   }, []);
 
-  const selectFolder = useCallback((path: string) => {
+  const jumpToFolder = useCallback((path: string) => {
     setView("all");
-    setSelectedFolderPath(path);
+    setActiveFolderPath(path);
+    setFolderJumpTarget(path);
+  }, []);
+
+  const clearFolderJumpTarget = useCallback(() => {
+    setFolderJumpTarget(null);
   }, []);
 
   const setFavorite = useCallback(
@@ -192,7 +203,8 @@ export function useLumenLibrary() {
     status,
     folders,
     view,
-    selectedFolderPath,
+    activeFolderPath,
+    folderJumpTarget,
     totalCount: status?.totalCount ?? gallery?.totalCount ?? mapped.photos.length,
     favoriteCount: status?.favoriteCount ?? 0,
     statusText: gallery?.statusText ?? status?.statusText ?? "",
@@ -201,7 +213,9 @@ export function useLumenLibrary() {
     sections: mapped.sections,
     selectAllPhotos,
     selectFavorites,
-    selectFolder,
+    jumpToFolder,
+    setActiveFolderPath,
+    clearFolderJumpTarget,
     setFavorite,
     refresh,
     rescan: () => lumenCall("rescan"),

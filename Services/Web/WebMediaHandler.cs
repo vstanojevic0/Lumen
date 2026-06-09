@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
+using Lumen.Services.Cache;
+using Lumen.Services.Database;
 using Lumen.Services.Imaging;
 
 namespace Lumen.Services.Web;
 
 /// <summary>
 /// Bounded, throttled image decode for the embedded web UI (avoids base64 bridge RAM spikes).
+/// Prefers on-disk cached thumbnails from SQLite when available.
 /// </summary>
 public sealed class WebMediaHandler
 {
@@ -15,12 +18,18 @@ public sealed class WebMediaHandler
     private const int MaxConcurrentDecodes = 2;
     private static readonly TimeSpan DecodeTimeout = TimeSpan.FromSeconds(45);
 
+    private readonly PhotoRepository _photos;
     private readonly SemaphoreSlim _decodeGate = new(MaxConcurrentDecodes, MaxConcurrentDecodes);
-    private readonly ConcurrentDictionary<string, byte[]> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CachedMedia> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _cacheOrderLock = new();
     private readonly Queue<string> _cacheOrder = new();
 
-    public async Task<byte[]?> GetPngAsync(string absolutePath, int maxEdge, CancellationToken cancellationToken = default)
+    public WebMediaHandler(PhotoRepository photos) => _photos = photos;
+
+    public async Task<MediaBytes?> GetMediaAsync(
+        string absolutePath,
+        int maxEdge,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(absolutePath))
             return null;
@@ -34,18 +43,32 @@ public sealed class WebMediaHandler
             return null;
         }
 
-        if (!File.Exists(absolutePath))
-            return null;
-
         var cacheKey = $"{maxEdge}|{absolutePath}";
         if (_cache.TryGetValue(cacheKey, out var cached))
-            return cached;
+            return cached.Bytes;
+
+        var fromDisk = TryReadCachedThumbnail(absolutePath, maxEdge);
+        if (fromDisk is not null)
+        {
+            Remember(cacheKey, fromDisk);
+            return fromDisk;
+        }
+
+        if (!File.Exists(absolutePath))
+            return null;
 
         await _decodeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_cache.TryGetValue(cacheKey, out cached))
-                return cached;
+                return cached.Bytes;
+
+            fromDisk = TryReadCachedThumbnail(absolutePath, maxEdge);
+            if (fromDisk is not null)
+            {
+                Remember(cacheKey, fromDisk);
+                return fromDisk;
+            }
 
             using var decodeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             decodeCts.CancelAfter(DecodeTimeout);
@@ -57,8 +80,9 @@ public sealed class WebMediaHandler
             if (bytes is null || bytes.Length == 0)
                 return null;
 
-            Remember(cacheKey, bytes);
-            return bytes;
+            var media = new MediaBytes(bytes, "image/png");
+            Remember(cacheKey, media);
+            return media;
         }
         finally
         {
@@ -66,9 +90,45 @@ public sealed class WebMediaHandler
         }
     }
 
-    private void Remember(string key, byte[] bytes)
+    public Task<byte[]?> GetPngAsync(string absolutePath, int maxEdge, CancellationToken cancellationToken = default) =>
+        GetMediaAsync(absolutePath, maxEdge, cancellationToken).ContinueWith(
+            t => t.Result?.ContentType == "image/png" ? t.Result.Bytes : t.Result?.Bytes,
+            cancellationToken);
+
+    private MediaBytes? TryReadCachedThumbnail(string absolutePath, int maxEdge)
     {
-        _cache[key] = bytes;
+        var photo = _photos.GetByPath(absolutePath);
+        if (photo is null || photo.IsMissing)
+            return null;
+
+        var cachePath = maxEdge > ThumbnailCacheService.SmallMaxEdge
+            ? photo.ThumbnailMediumPath ?? photo.ThumbnailPath
+            : photo.ThumbnailPath;
+
+        if (string.IsNullOrWhiteSpace(cachePath) || !File.Exists(cachePath))
+            return null;
+
+        try
+        {
+            var bytes = File.ReadAllBytes(cachePath);
+            if (bytes.Length == 0)
+                return null;
+
+            var contentType = cachePath.EndsWith(".webp", StringComparison.OrdinalIgnoreCase)
+                ? "image/webp"
+                : "image/jpeg";
+
+            return new MediaBytes(bytes, contentType);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private void Remember(string key, MediaBytes bytes)
+    {
+        _cache[key] = new CachedMedia(bytes);
         lock (_cacheOrderLock)
         {
             _cacheOrder.Enqueue(key);
@@ -110,4 +170,18 @@ public sealed class WebMediaHandler
             return null;
         }
     }
+
+    private readonly record struct CachedMedia(MediaBytes Bytes);
+}
+
+public sealed class MediaBytes
+{
+    public MediaBytes(byte[] bytes, string contentType)
+    {
+        Bytes = bytes;
+        ContentType = contentType;
+    }
+
+    public byte[] Bytes { get; }
+    public string ContentType { get; }
 }

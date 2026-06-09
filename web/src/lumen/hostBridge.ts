@@ -13,6 +13,7 @@ export interface WebFolderDto {
 
 export interface WebGallerySectionDto {
   title: string;
+  folderPath: string;
   photos: WebPhotoDto[];
 }
 

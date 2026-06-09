@@ -126,14 +126,15 @@ public sealed class LumenEmbeddedWebServer : IDisposable
             ? WebMediaHandler.PreviewMaxEdge
             : WebMediaHandler.ThumbMaxEdge;
 
-        var bytes = await _media.GetPngAsync(photoPath, maxEdge, _shutdown.Token).ConfigureAwait(false);
-        if (bytes is null)
+        var media = await _media.GetMediaAsync(photoPath, maxEdge, _shutdown.Token).ConfigureAwait(false);
+        if (media is null)
         {
             context.Response.StatusCode = 404;
             return;
         }
 
-        context.Response.ContentType = "image/png";
+        context.Response.ContentType = media.ContentType;
+        var bytes = media.Bytes;
         context.Response.Headers.Add("Cache-Control", "private, max-age=3600");
         context.Response.ContentLength64 = bytes.Length;
         await context.Response.OutputStream.WriteAsync(bytes).ConfigureAwait(false);

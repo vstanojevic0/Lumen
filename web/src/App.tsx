@@ -1,20 +1,25 @@
+import { Heart } from "lucide-react";
 import {
-  Calendar,
-  Camera,
-  Heart,
-  Info,
-  MoreHorizontal,
-  SearchX,
-  Share2,
-  Star,
-} from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  findActiveFolderFromScroll,
+  findJumpSectionPath,
+  normalizeFolderPath,
+} from "./lumen/folderScroll";
 import { EditingCanvas } from "./components/EditingCanvas";
 import { HostPhotoImage } from "./components/HostPhotoImage";
 import { RightEditPanel } from "./components/RightEditPanel";
 import { Sidebar } from "./components/Sidebar";
 import { TopToolbar } from "./components/TopToolbar";
 import { useEditHistory } from "./hooks/useEditHistory";
+import { useEditNavigation } from "./hooks/useEditNavigation";
+import { usePhotoNavigation } from "./hooks/usePhotoNavigation";
 import { filmstripWindow } from "./lumen/mediaUrls";
 import { useLumenLibrary } from "./lumen/useLumenLibrary";
 import { presets, type PresetId } from "./lib/presets";
@@ -28,8 +33,6 @@ export default function App() {
   const [selectedId, setSelectedId] = useState("");
   const [zoom, setZoom] = useState(100);
   const [showCopiedToast, setShowCopiedToast] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-
   useEffect(() => {
     setPhotos(library.photos);
     setSections(library.sections);
@@ -50,6 +53,11 @@ export default function App() {
     canRedo,
   } = useEditHistory();
 
+  const { enterEdit, backToLibrary, handleModeChange } = useEditNavigation(
+    mode,
+    setMode,
+  );
+
   const photo =
     photos.find((p) => p.id === selectedId) ?? photos[0] ?? null;
 
@@ -58,29 +66,22 @@ export default function App() {
     [photos, photo],
   );
 
-  const visibleSections = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return sections;
+  const navigationPhotos = photos;
 
-    return sections
-      .map((section) => ({
-        ...section,
-        photos: section.photos.filter((p) =>
-          [p.title, p.path].filter(Boolean).some((value) =>
-            value?.toLowerCase().includes(query),
-          ),
-        ),
-      }))
-      .filter((section) => section.photos.length > 0);
-  }, [sections, searchQuery]);
+  const handleSelectPhoto = useCallback(
+    (id: string) => {
+      setSelectedId(id);
+      reset();
+    },
+    [reset],
+  );
 
-  const viewLabel = useMemo(() => {
-    if (library.selectedFolderPath) {
-      return folderNameFromPath(library.selectedFolderPath);
-    }
-
-    return "All Photos";
-  }, [library.selectedFolderPath]);
+  usePhotoNavigation({
+    photos: navigationPhotos,
+    selectedId,
+    onSelect: handleSelectPhoto,
+    enabled: navigationPhotos.length > 1 && Boolean(selectedId),
+  });
 
   const applyPreset = useCallback(
     (id: PresetId) => {
@@ -129,12 +130,13 @@ export default function App() {
   const sidebar = (
     <Sidebar
       totalCount={library.totalCount}
-      folders={library.folders}
+      sections={sections}
+      scanRoots={library.folders}
       view={library.view}
-      selectedFolderPath={library.selectedFolderPath}
+      activeFolderPath={library.activeFolderPath}
       host={library.host}
       onSelectAll={library.selectAllPhotos}
-      onSelectFolder={library.selectFolder}
+      onSelectFolder={library.jumpToFolder}
       onAddFolder={() => void library.addFolder()}
     />
   );
@@ -160,12 +162,10 @@ export default function App() {
           title={
             library.view === "favorites"
               ? "No favorites yet"
-              : library.selectedFolderPath
-                ? "No photos in this folder"
-                : "No photos in library"
+              : "No photos in library"
           }
           detail={library.statusText}
-          showAddFolder={!library.selectedFolderPath && library.view !== "favorites"}
+          showAddFolder={library.view !== "favorites"}
           onAddFolder={() => void library.addFolder()}
         />
       </AppShell>
@@ -185,7 +185,7 @@ export default function App() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <TopToolbar
           mode={mode}
-          onModeChange={setMode}
+          onModeChange={handleModeChange}
           zoom={zoom}
           onZoomChange={setZoom}
           canUndo={canUndo}
@@ -193,10 +193,8 @@ export default function App() {
           onUndo={undo}
           onRedo={redo}
           onExport={handleExport}
+          onBack={mode === "edit" ? backToLibrary : undefined}
           statusText={library.statusText}
-          viewLabel={viewLabel}
-          searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
         />
 
         {mode === "edit" ? (
@@ -206,7 +204,7 @@ export default function App() {
               filmstripPhotos={filmstripPhotos}
               edits={edits}
               zoom={zoom}
-              onSelectPhoto={setSelectedId}
+              onSelectPhoto={handleSelectPhoto}
               onToggleFavorite={handleToggleFavorite}
               onToggleFlag={() => updatePhoto({ flagged: !photo.flagged })}
               onCopyEdits={handleCopyEdits}
@@ -225,22 +223,17 @@ export default function App() {
         ) : (
           <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <LibraryGrid
-              sections={visibleSections}
+              sections={sections}
               selectedId={selectedId}
-              searchQuery={searchQuery}
               zoom={zoom}
+              folderJumpTarget={library.folderJumpTarget}
+              onActiveFolderChange={library.setActiveFolderPath}
+              onJumpComplete={library.clearFolderJumpTarget}
               onSelect={(id) => {
-                setSelectedId(id);
-                setMode("edit");
+                handleSelectPhoto(id);
+                enterEdit();
                 setZoom(100);
               }}
-            />
-            <LibraryInspector
-              photo={photo}
-              edits={edits}
-              onToggleFavorite={handleToggleFavorite}
-              onExport={handleExport}
-              onOpenEdit={() => setMode("edit")}
             />
           </div>
         )}
@@ -317,25 +310,198 @@ function EmptyLibraryState({
 function LibraryGrid({
   sections,
   selectedId,
-  searchQuery,
   zoom,
+  folderJumpTarget,
+  onActiveFolderChange,
+  onJumpComplete,
   onSelect,
 }: {
-  sections: { title: string; photos: PhotoItem[] }[];
+  sections: { title: string; folderPath: string; photos: PhotoItem[] }[];
   selectedId: string;
-  searchQuery: string;
   zoom: number;
+  folderJumpTarget: string | null;
+  onActiveFolderChange: (path: string | null) => void;
+  onJumpComplete: () => void;
   onSelect: (id: string) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef(new Map<string, HTMLElement>());
+  const markerRefs = useRef(new Map<string, HTMLElement>());
+  const scrollSpyPausedRef = useRef(false);
+  const forcedFolderRef = useRef<string | null>(null);
+  const activeFolderRef = useRef<string | null>(null);
+  const [flashFolderPath, setFlashFolderPath] = useState<string | null>(null);
+
+  const registerSectionRef = useCallback(
+    (folderPath: string, element: HTMLElement | null) => {
+      if (element) sectionRefs.current.set(folderPath, element);
+      else sectionRefs.current.delete(folderPath);
+    },
+    [],
+  );
+
+  const registerMarkerRef = useCallback(
+    (folderPath: string, element: HTMLElement | null) => {
+      if (element) markerRefs.current.set(folderPath, element);
+      else markerRefs.current.delete(folderPath);
+    },
+    [],
+  );
+
+  const publishActiveFolder = useCallback(
+    (path: string | null) => {
+      if (!path) return;
+      const normalized = normalizeFolderPath(path).toLowerCase();
+      if (activeFolderRef.current === normalized) return;
+      activeFolderRef.current = normalized;
+      onActiveFolderChange(path);
+    },
+    [onActiveFolderChange],
+  );
+
+  useEffect(() => {
+    if (!folderJumpTarget) {
+      scrollSpyPausedRef.current = false;
+    }
+  }, [folderJumpTarget]);
+
+  useEffect(() => {
+    activeFolderRef.current = null;
+  }, [sections]);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || sections.length === 0) return;
+
+    let frame = 0;
+
+    const updateActiveFolder = () => {
+      if (scrollSpyPausedRef.current) return;
+      if (forcedFolderRef.current) {
+        publishActiveFolder(forcedFolderRef.current);
+        return;
+      }
+      const active = findActiveFolderFromScroll(
+        sections,
+        container,
+        markerRefs.current,
+        sectionRefs.current,
+      );
+      publishActiveFolder(active);
+    };
+
+    const onScroll = () => {
+      if (!forcedFolderRef.current) {
+        scrollSpyPausedRef.current = false;
+      }
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        updateActiveFolder();
+      });
+    };
+
+    const observer = new IntersectionObserver(
+      () => updateActiveFolder(),
+      {
+        root: container,
+        rootMargin: "-72px 0px -55% 0px",
+        threshold: [0, 0.01, 0.1, 0.25, 0.5, 1],
+      },
+    );
+
+    const observeMarkers = () => {
+      observer.disconnect();
+      for (const section of sections) {
+        const marker = markerRefs.current.get(section.folderPath);
+        if (marker) observer.observe(marker);
+      }
+      updateActiveFolder();
+    };
+
+    observeMarkers();
+    const markerTimer = window.setTimeout(observeMarkers, 0);
+
+    container.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+
+    return () => {
+      window.clearTimeout(markerTimer);
+      observer.disconnect();
+      container.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [sections, publishActiveFolder]);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !folderJumpTarget) return;
+
+    scrollSpyPausedRef.current = true;
+
+    const finishJump = (path: string | null) => {
+      if (path) {
+        activeFolderRef.current = null;
+        forcedFolderRef.current = path;
+        publishActiveFolder(path);
+      }
+      scrollSpyPausedRef.current = false;
+      forcedFolderRef.current = null;
+      onJumpComplete();
+    };
+
+    if (folderJumpTarget === "__top__") {
+      const firstPath = sections[0]?.folderPath ?? null;
+      forcedFolderRef.current = firstPath;
+      activeFolderRef.current = null;
+      publishActiveFolder(firstPath);
+      container.scrollTo({ top: 0, behavior: "smooth" });
+
+      const topTimer = window.setTimeout(() => finishJump(firstPath), 700);
+      return () => window.clearTimeout(topTimer);
+    }
+
+    const sectionPath = findJumpSectionPath(sections, folderJumpTarget);
+    if (!sectionPath) {
+      finishJump(null);
+      return;
+    }
+
+    const element = sectionRefs.current.get(sectionPath);
+    if (!element) {
+      finishJump(sectionPath);
+      return;
+    }
+
+    forcedFolderRef.current = sectionPath;
+    activeFolderRef.current = null;
+    publishActiveFolder(sectionPath);
+    setFlashFolderPath(sectionPath);
+    element.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    const flashTimer = window.setTimeout(() => setFlashFolderPath(null), 1200);
+
+    const onScrollEnd = () => finishJump(sectionPath);
+    container.addEventListener("scrollend", onScrollEnd, { once: true });
+
+    const resumeTimer = window.setTimeout(() => {
+      container.removeEventListener("scrollend", onScrollEnd);
+      finishJump(sectionPath);
+    }, 1100);
+
+    return () => {
+      container.removeEventListener("scrollend", onScrollEnd);
+      window.clearTimeout(flashTimer);
+      window.clearTimeout(resumeTimer);
+    };
+  }, [folderJumpTarget, sections, publishActiveFolder, onJumpComplete]);
+
   if (sections.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center px-8 text-center">
         <div className="lumen-surface max-w-sm rounded-2xl px-8 py-7">
-          <SearchX size={28} className="mx-auto mb-3 text-white/35" />
-          <div className="text-sm font-medium text-white/80">No matching photos</div>
-          <div className="mt-1 text-xs text-white/42">
-            {searchQuery ? `Nothing found for "${searchQuery}".` : "Your library is empty."}
-          </div>
+          <div className="text-sm font-medium text-white/80">Your library is empty.</div>
         </div>
       </div>
     );
@@ -344,17 +510,38 @@ function LibraryGrid({
   const tileMin = Math.round(96 + zoom * 0.6);
 
   return (
-    <div className="min-w-0 flex-1 overflow-y-auto px-7 py-5">
-      {sections.map((section) => (
-        <section key={`${section.title}-${section.photos[0]?.id ?? "empty"}`} className="mb-8">
-          <div className="mb-3 flex items-end gap-3">
-            <h2 className="text-[17px] font-semibold text-white/92">{section.title}</h2>
-            <span className="pb-0.5 text-xs font-medium text-[#5da2ff]">
-              {section.photos.length.toLocaleString()} Photos
-            </span>
-          </div>
+    <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto px-7 py-5 scroll-smooth">
+      {sections.map((section, index) => (
+        <section
+          key={section.folderPath}
+          ref={(element) => registerSectionRef(section.folderPath, element)}
+          data-folder-path={section.folderPath}
+          className={`lumen-folder-section ${index === 0 ? "" : "mt-2"} ${
+            flashFolderPath === section.folderPath ? "lumen-folder-section--flash" : ""
+          }`}
+        >
+          {index > 0 ? (
+            <div
+              ref={(element) => registerMarkerRef(section.folderPath, element)}
+              data-folder-marker
+              className="lumen-folder-divider mb-4 mt-1"
+            >
+              <span className="lumen-folder-divider__label">{section.title}</span>
+            </div>
+          ) : (
+            <div
+              ref={(element) => registerMarkerRef(section.folderPath, element)}
+              data-folder-marker
+              className="mb-3 flex items-center gap-2"
+            >
+              <span className="text-[11px] font-medium uppercase tracking-wide text-white/38">
+                {section.title}
+              </span>
+              <span className="h-px flex-1 bg-white/8" />
+            </div>
+          )}
           <div
-            className="grid gap-2.5"
+            className="grid gap-2.5 pb-5"
             style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tileMin}px, 1fr))` }}
           >
             {section.photos.map((p) => (
@@ -391,171 +578,3 @@ function LibraryGrid({
   );
 }
 
-function LibraryInspector({
-  photo,
-  edits,
-  onToggleFavorite,
-  onExport,
-  onOpenEdit,
-}: {
-  photo: PhotoItem;
-  edits: ReturnType<typeof defaultEditValues>;
-  onToggleFavorite: () => void;
-  onExport: () => void;
-  onOpenEdit: () => void;
-}) {
-  return (
-    <aside className="glass hidden h-full w-[344px] shrink-0 flex-col border-l border-white/8 p-3 xl:flex">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="rounded-full bg-white/6 p-1 text-xs font-medium text-white/62">
-          <button type="button" className="rounded-full bg-white/10 px-5 py-1.5 text-white">
-            Info
-          </button>
-          <button
-            type="button"
-            onClick={onOpenEdit}
-            className="rounded-full px-5 py-1.5 text-white/55 hover:text-white"
-          >
-            Edit
-          </button>
-        </div>
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/6 text-white/55"
-          title="More"
-        >
-          <MoreHorizontal size={18} />
-        </button>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-white/8 bg-white/5">
-        <div className="relative aspect-[4/3]">
-          <HostPhotoImage
-            path={photo.path}
-            alt={photo.title}
-            maxEdge="preview"
-            eager
-            className="h-full w-full object-cover"
-          />
-          <button
-            type="button"
-            onClick={onToggleFavorite}
-            className={`absolute right-3 top-3 text-[#ff625b] drop-shadow ${
-              photo.favorite ? "" : "opacity-75"
-            }`}
-            title={photo.favorite ? "Remove from favorites" : "Add to favorites"}
-          >
-            <Heart size={20} className={photo.favorite ? "fill-current" : ""} />
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="min-w-0 truncate text-lg font-semibold text-white">{photo.title}</h2>
-          {isRawLike(photo.title) ? (
-            <span className="rounded-md bg-white/10 px-2 py-1 text-[10px] font-bold text-white/70">
-              RAW
-            </span>
-          ) : null}
-        </div>
-        <div className="mt-1 text-xs text-white/45">Selected photo</div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-4 gap-2 rounded-xl border border-white/8 bg-white/5 p-2">
-        <Meta icon={Camera} label="Lens" value={photo.focalLength} />
-        <Meta icon={Calendar} label="Shutter" value={photo.shutter} />
-        <Meta icon={Info} label="Aperture" value={photo.aperture} />
-        <Meta icon={Star} label="ISO" value={photo.iso > 0 ? String(photo.iso) : "—"} />
-      </div>
-
-      <div className="mt-4 rounded-xl border border-white/8 bg-white/5 p-3">
-        <div className="mb-3 flex items-center justify-between text-sm font-semibold text-white/85">
-          <span>Quick Edits</span>
-          <span className="text-xs font-normal text-white/38">Preview</span>
-        </div>
-        <InspectorSlider label="Exposure" value={edits.exposure} min={-2} max={2} />
-        <InspectorSlider label="Contrast" value={edits.contrast} min={-100} max={100} />
-        <InspectorSlider label="Highlights" value={edits.highlights} min={-100} max={100} />
-        <InspectorSlider label="Shadows" value={edits.shadows} min={-100} max={100} />
-        <InspectorSlider label="Vibrance" value={edits.vibrance} min={-100} max={100} />
-        <InspectorSlider label="Saturation" value={edits.saturation} min={-100} max={100} />
-      </div>
-
-      <div className="mt-auto grid grid-cols-2 gap-3 pt-4">
-        <button
-          type="button"
-          className="flex items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-3 text-sm font-medium text-white/80 hover:bg-white/14"
-        >
-          <Share2 size={16} />
-          Share
-        </button>
-        <button
-          type="button"
-          onClick={onExport}
-          className="rounded-xl bg-[#087bff] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[#087bff]/25 hover:bg-[#1e88ff]"
-        >
-          Export...
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-function Meta({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Camera;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="min-w-0 text-center">
-      <Icon size={14} className="mx-auto mb-1 text-white/45" />
-      <div className="truncate text-[10px] text-white/36">{label}</div>
-      <div className="truncate text-[10px] font-medium text-white/72">{value}</div>
-    </div>
-  );
-}
-
-function InspectorSlider({
-  label,
-  value,
-  min,
-  max,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-}) {
-  const pct = ((value - min) / (max - min)) * 100;
-  return (
-    <div className="mb-3 grid grid-cols-[82px_1fr_42px] items-center gap-3 text-xs last:mb-0">
-      <span className="text-white/68">{label}</span>
-      <div className="h-1.5 rounded-full bg-white/10">
-        <div
-          className="h-full rounded-full bg-white/45"
-          style={{ width: `${Math.max(0, Math.min(100, pct))}%` }}
-        />
-      </div>
-      <span className="text-right tabular-nums text-white/58">{formatEditValue(value)}</span>
-    </div>
-  );
-}
-
-function isRawLike(name: string) {
-  return /\.(raw|dng|cr2|cr3|nef|arw|orf|raf|rw2)$/i.test(name);
-}
-
-function formatEditValue(value: number) {
-  if (Math.abs(value) < 0.005) return "0";
-  return value > 0 ? `+${Math.round(value)}` : String(Math.round(value));
-}
-
-function folderNameFromPath(path: string) {
-  const trimmed = path.replace(/[\\/]+$/, "");
-  return trimmed.split(/[\\/]/).pop() || trimmed || "Folder";
-}

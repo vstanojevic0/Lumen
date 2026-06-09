@@ -2,7 +2,10 @@ namespace Lumen.Services.Web;
 
 public sealed record WebPhotoDto(string Path, string Title, bool Favorite);
 
-public sealed record WebGallerySectionDto(string Title, IReadOnlyList<WebPhotoDto> Photos);
+public sealed record WebGallerySectionDto(
+    string Title,
+    string FolderPath,
+    IReadOnlyList<WebPhotoDto> Photos);
 
 public sealed record WebGallerySnapshot(
     int TotalCount,

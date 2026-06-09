@@ -8,6 +8,54 @@ public static class ImageLoader
     /// <summary>
     /// Decodes and scales on a worker thread, returns PNG bytes for UI-thread Bitmap creation.
     /// </summary>
+    public static (int Width, int Height)? TryReadImageDimensions(string absolutePath)
+    {
+        if (string.IsNullOrWhiteSpace(absolutePath) || !File.Exists(absolutePath))
+            return null;
+
+        try
+        {
+            using var codec = SKCodec.Create(absolutePath);
+            if (codec is not null)
+            {
+                var info = codec.Info;
+                if (info.Width > 0 && info.Height > 0)
+                    return (info.Width, info.Height);
+            }
+
+            using var bitmap = SKBitmap.Decode(absolutePath);
+            if (bitmap is not null && bitmap.Width > 0 && bitmap.Height > 0)
+                return (bitmap.Width, bitmap.Height);
+        }
+        catch (Exception ex) when (IsBenign(ex))
+        {
+        }
+
+        return null;
+    }
+
+    public static byte[]? TryEncodeJpegBytes(string absolutePath, int maxEdge, int quality = 85)
+    {
+        var png = TryEncodeThumbnailBytes(absolutePath, maxEdge);
+        if (png is null)
+            return null;
+
+        try
+        {
+            using var bitmap = SKBitmap.Decode(png);
+            if (bitmap is null || bitmap.Width <= 0 || bitmap.Height <= 0)
+                return null;
+
+            using var image = SKImage.FromBitmap(bitmap);
+            using var data = image.Encode(SKEncodedImageFormat.Jpeg, quality);
+            return data?.ToArray();
+        }
+        catch (Exception ex) when (IsBenign(ex))
+        {
+            return null;
+        }
+    }
+
     public static byte[]? TryEncodeThumbnailBytes(string absolutePath, int maxWidth)
     {
         if (string.IsNullOrWhiteSpace(absolutePath) || !File.Exists(absolutePath))

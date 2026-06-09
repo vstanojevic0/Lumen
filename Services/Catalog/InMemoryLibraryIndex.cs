@@ -4,7 +4,7 @@ using Lumen.Core.Models;
 namespace Lumen.Services.Catalog;
 
 /// <summary>
-/// In-memory catalog for the prototype. Later: SQLite + incremental file watcher.
+/// In-memory read model populated from SQLite; refreshed after background sync.
 /// </summary>
 public sealed class InMemoryLibraryIndex : ILibraryIndex
 {
@@ -334,13 +334,15 @@ public sealed class InMemoryLibraryIndex : ILibraryIndex
                 .ToList();
 
             directCounts.TryGetValue(FullPath, out var direct);
+            var total = direct + children.Sum(c => c.PhotoCountTotal);
 
             return new FolderBrowseNode
             {
                 AbsolutePath = FullPath,
                 DisplayName = SegmentName,
                 Children = children,
-                PhotoCountDirect = direct
+                PhotoCountDirect = direct,
+                PhotoCountTotal = total
             };
         }
     }

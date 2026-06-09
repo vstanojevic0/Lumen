@@ -6,7 +6,7 @@ using Lumen.ViewModels;
 namespace Lumen.Services.Web;
 
 /// <summary>
-/// JSON-RPC-style bridge between embedded React UI and <see cref="MainWindowViewModel"/>.
+/// JSON-RPC bridge between the React UI and <see cref="LibraryViewModel"/>.
 /// </summary>
 public sealed class LumenWebBridge
 {
@@ -17,9 +17,9 @@ public sealed class LumenWebBridge
     };
 
     private NativeWebView? _webView;
-    private MainWindowViewModel? _vm;
+    private LibraryViewModel? _vm;
 
-    public void Attach(NativeWebView webView, MainWindowViewModel viewModel)
+    public void Attach(NativeWebView webView, LibraryViewModel viewModel)
     {
         Detach();
 
@@ -57,9 +57,9 @@ public sealed class LumenWebBridge
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(MainWindowViewModel.IsBusy)
-            or nameof(MainWindowViewModel.StatusText)
-            or nameof(MainWindowViewModel.TotalPhotoCount))
+        if (e.PropertyName is nameof(LibraryViewModel.IsBusy)
+            or nameof(LibraryViewModel.StatusText)
+            or nameof(LibraryViewModel.TotalPhotoCount))
         {
             _ = PushStatusAsync();
         }
@@ -113,19 +113,19 @@ public sealed class LumenWebBridge
         };
     }
 
-    private static async Task<object> RescanAsync(MainWindowViewModel vm)
+    private static async Task<object> RescanAsync(LibraryViewModel vm)
     {
         await vm.RequestRescanAsync().ConfigureAwait(true);
         return new { ok = true };
     }
 
-    private static async Task<object> AddFolderAsync(MainWindowViewModel vm)
+    private static async Task<object> AddFolderAsync(LibraryViewModel vm)
     {
         await vm.RequestAddFolderAsync().ConfigureAwait(true);
         return new { ok = true };
     }
 
-    private static WebGallerySnapshot GetGallery(MainWindowViewModel vm, JsonElement? parameters)
+    private static WebGallerySnapshot GetGallery(LibraryViewModel vm, JsonElement? parameters)
     {
         var (folderPath, favoritesOnly) = ParseGalleryRequest(parameters);
         return vm.GetWebGallerySnapshot(folderPath, favoritesOnly);
@@ -149,7 +149,7 @@ public sealed class LumenWebBridge
         return (folderPath, favoritesOnly);
     }
 
-    private static object SetFavorite(MainWindowViewModel vm, JsonElement? parameters)
+    private static object SetFavorite(LibraryViewModel vm, JsonElement? parameters)
     {
         if (parameters is not JsonElement el ||
             !el.TryGetProperty("path", out var pathProp) ||
