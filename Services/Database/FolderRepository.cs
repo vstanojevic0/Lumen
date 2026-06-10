@@ -67,11 +67,7 @@ public sealed class FolderRepository
 
     public void SyncScanRoots(IReadOnlyList<string> scanRoots)
     {
-        var normalized = scanRoots
-            .Select(NormalizeFolderPath)
-            .Where(Directory.Exists)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var normalized = CatalogPathNormalizer.PruneNestedScanRoots(scanRoots);
 
         using var connection = _database.OpenConnection();
         using var transaction = connection.BeginTransaction();
@@ -142,7 +138,7 @@ public sealed class FolderRepository
         };
 
     private static string NormalizeFolderPath(string path) =>
-        Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        CatalogPathNormalizer.NormalizeFolderPath(path);
 
     private static string FormatDisplayName(string path)
     {

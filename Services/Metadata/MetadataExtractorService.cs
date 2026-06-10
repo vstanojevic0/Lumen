@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Lumen.Services.Database;
 using Lumen.Services.Imaging;
 
 namespace Lumen.Services.Metadata;
@@ -13,7 +14,7 @@ public sealed class MetadataExtractorService
 
         try
         {
-            absolutePath = Path.GetFullPath(absolutePath);
+            absolutePath = CatalogPathNormalizer.NormalizeFilePath(absolutePath);
             var info = new FileInfo(absolutePath);
             if (!info.Exists || info.Length == 0)
                 return null;

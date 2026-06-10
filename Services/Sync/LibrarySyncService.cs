@@ -54,13 +54,9 @@ public sealed class LibrarySyncService
         IReadOnlyList<string> scanRoots,
         CancellationToken cancellationToken = default)
     {
-        index.ScanRoots = scanRoots
-            .Select(Path.TrimEndingDirectorySeparator)
-            .Where(Directory.Exists)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        index.ScanRoots = CatalogPathNormalizer.PruneNestedScanRoots(scanRoots);
 
-        var entries = await Task.Run(() => LoadVisiblePhotos(scanRoots), cancellationToken).ConfigureAwait(false);
+        var entries = await Task.Run(() => LoadVisiblePhotos(index.ScanRoots), cancellationToken).ConfigureAwait(false);
         await index.RebuildAsync(ToAsyncEnumerable(entries), cancellationToken).ConfigureAwait(false);
     }
 
@@ -95,10 +91,8 @@ public sealed class LibrarySyncService
         _database.EnsureInitialized();
         _folders.SyncScanRoots(scanRoots);
 
-        var roots = scanRoots
-            .Select(Path.TrimEndingDirectorySeparator)
+        var roots = CatalogPathNormalizer.PruneNestedScanRoots(scanRoots)
             .Where(Directory.Exists)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         if (roots.Count == 0)
@@ -146,7 +140,9 @@ public sealed class LibrarySyncService
             .ConfigureAwait(false);
 
         var diskPaths = await Task.Run(
-            () => _scanner.EnumeratePhotoPaths(root, cancellationToken).ToHashSet(StringComparer.OrdinalIgnoreCase),
+            () => _scanner.EnumeratePhotoPaths(root, cancellationToken)
+                .Select(CatalogPathNormalizer.NormalizeFilePath)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase),
             cancellationToken).ConfigureAwait(false);
 
         summary.TotalFiles += diskPaths.Count;
@@ -163,6 +159,14 @@ public sealed class LibrarySyncService
                 Report(progress, $"Checking {root}…", summary, fullRescan);
 
             if (!existing.TryGetValue(path, out var record))
+            {
+                record = await Task.Run(() => _photos.GetByPath(path), cancellationToken)
+                    .ConfigureAwait(false);
+                if (record is not null)
+                    existing[path] = record;
+            }
+
+            if (record is null)
             {
                 var extracted = await Task.Run(() => _metadata.TryExtract(path), cancellationToken)
                     .ConfigureAwait(false);
@@ -244,7 +248,7 @@ public sealed class LibrarySyncService
             await FlushUpdatesAsync(updates, cancellationToken).ConfigureAwait(false);
 
         var missingIds = existing.Values
-            .Where(p => !p.IsMissing && !diskPaths.Contains(p.FilePath))
+            .Where(p => !p.IsMissing && !diskPaths.Contains(CatalogPathNormalizer.NormalizeFilePath(p.FilePath)))
             .Select(p => p.Id)
             .ToList();
 

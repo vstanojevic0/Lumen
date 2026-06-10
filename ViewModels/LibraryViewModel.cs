@@ -113,7 +113,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         if (loaded.ScanRoots.Count == 0)
             ApplyFallbackRootsFromCatalog();
 
-        PruneOverlappingMacScanRoots(loaded);
+        PruneOverlappingScanRoots(loaded);
         MigrateFavoritesToDatabase(loaded);
 
         await LoadLibraryFromDatabaseAsync().ConfigureAwait(true);
@@ -273,11 +273,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
     }
 
     private List<string> GetActiveScanRoots() =>
-        _store.Load().ScanRoots
-            .Select(Path.TrimEndingDirectorySeparator)
-            .Where(Directory.Exists)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        CatalogPathNormalizer.PruneNestedScanRoots(
+            _store.Load().ScanRoots.Where(Directory.Exists));
 
     private void MigrateFavoritesToDatabase(AppSettings settings)
     {
@@ -420,34 +417,37 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         return directoryPath;
     }
 
-    private void PruneOverlappingMacScanRoots(AppSettings settings)
+    private void PruneOverlappingScanRoots(AppSettings settings)
     {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        var pruned = CatalogPathNormalizer.PruneNestedScanRoots(settings.ScanRoots);
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            pruned = PruneMacPicturesHomeOverlap(pruned);
+
+        if (pruned.ToHashSet(StringComparer.OrdinalIgnoreCase)
+                .SetEquals(settings.ScanRoots.Select(CatalogPathNormalizer.NormalizeFolderPath)))
             return;
 
-        var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-        if (string.IsNullOrWhiteSpace(pictures))
-            return;
-
-        pictures = Path.TrimEndingDirectorySeparator(pictures);
-        var home = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-
-        var normalized = settings.ScanRoots
-            .Select(Path.TrimEndingDirectorySeparator)
-            .Where(Directory.Exists)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (normalized.Any(p => string.Equals(p, pictures, StringComparison.OrdinalIgnoreCase)))
-            normalized = normalized.Where(p => !string.Equals(p, home, StringComparison.OrdinalIgnoreCase)).ToList();
-
-        if (normalized.ToHashSet(StringComparer.OrdinalIgnoreCase)
-                .SetEquals(settings.ScanRoots.Select(Path.TrimEndingDirectorySeparator)))
-            return;
-
-        settings.ScanRoots = normalized;
+        settings.ScanRoots = pruned;
         settings.FirstRunCompleted = true;
         _store.Save(settings);
+    }
+
+    private static List<string> PruneMacPicturesHomeOverlap(List<string> roots)
+    {
+        var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+        if (string.IsNullOrWhiteSpace(pictures))
+            return roots;
+
+        pictures = CatalogPathNormalizer.NormalizeFolderPath(pictures);
+        var home = CatalogPathNormalizer.NormalizeFolderPath(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+
+        if (!roots.Any(p => CatalogPathNormalizer.PathsEqual(p, pictures)))
+            return roots;
+
+        return roots
+            .Where(p => !CatalogPathNormalizer.PathsEqual(p, home))
+            .ToList();
     }
 
     private void ApplyFallbackRootsFromCatalog()

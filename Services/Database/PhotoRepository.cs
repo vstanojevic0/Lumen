@@ -29,7 +29,7 @@ public sealed class PhotoRepository
 
     public CatalogPhotoRecord? GetByPath(string filePath)
     {
-        filePath = NormalizeFilePath(filePath);
+        filePath = CatalogPathNormalizer.NormalizeFilePath(filePath);
         using var connection = _database.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -68,7 +68,7 @@ public sealed class PhotoRepository
         while (reader.Read())
         {
             var photo = ReadPhoto(reader);
-            map[photo.FilePath] = photo;
+            map[CatalogPathNormalizer.NormalizeFilePath(photo.FilePath)] = photo;
         }
 
         return map;
@@ -84,7 +84,7 @@ public sealed class PhotoRepository
 
     public void SetFavorite(string filePath, bool favorite)
     {
-        filePath = NormalizeFilePath(filePath);
+        filePath = CatalogPathNormalizer.NormalizeFilePath(filePath);
         var now = DateTimeOffset.UtcNow.ToString("O");
         using var connection = _database.OpenConnection();
         using var command = connection.CreateCommand();
@@ -117,7 +117,7 @@ public sealed class PhotoRepository
                 WHERE FilePath = $path COLLATE NOCASE;
                 """;
             command.Parameters.AddWithValue("$updatedAt", DateTimeOffset.UtcNow.ToString("O"));
-            command.Parameters.AddWithValue("$path", NormalizeFilePath(path));
+            command.Parameters.AddWithValue("$path", CatalogPathNormalizer.NormalizeFilePath(path));
             command.ExecuteNonQuery();
         }
 
@@ -154,14 +154,19 @@ public sealed class PhotoRepository
         if (photos.Count == 0)
             return;
 
+        var deduped = photos
+            .GroupBy(p => CatalogPathNormalizer.NormalizeFilePath(p.FilePath), StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.Last())
+            .ToList();
+
         using var connection = _database.OpenConnection();
         using var transaction = connection.BeginTransaction();
 
-        foreach (var photo in photos)
+        foreach (var photo in deduped)
         {
             using var command = connection.CreateCommand();
             command.Transaction = transaction;
-            BindInsert(command, photo, returningId: false);
+            BindUpsert(command, photo);
             command.ExecuteNonQuery();
         }
 
@@ -287,8 +292,48 @@ public sealed class PhotoRepository
                 0, $isFavorite, 0, $createdAt, $updatedAt
             )
             """ + (returningId ? "RETURNING Id;" : ";");
+        BindInsertParameters(command, photo);
+    }
+
+    private static void BindUpsert(SqliteCommand command, NewPhotoRecord photo)
+    {
+        command.CommandText = """
+            INSERT INTO Photos (
+                FolderId, FilePath, FileName, Extension, FileSize,
+                DateCreated, DateModified, DateTaken, Width, Height, Orientation,
+                CameraModel, Hash, ThumbnailPath, ThumbnailMediumPath,
+                IsMissing, IsFavorite, Rating, CreatedAt, UpdatedAt
+            ) VALUES (
+                $folderId, $filePath, $fileName, $extension, $fileSize,
+                $dateCreated, $dateModified, $dateTaken, $width, $height, $orientation,
+                $cameraModel, $hash, $thumbnailPath, $thumbnailMediumPath,
+                0, $isFavorite, 0, $createdAt, $updatedAt
+            )
+            ON CONFLICT(FilePath) DO UPDATE SET
+                FolderId = excluded.FolderId,
+                FileName = excluded.FileName,
+                Extension = excluded.Extension,
+                FileSize = excluded.FileSize,
+                DateCreated = excluded.DateCreated,
+                DateModified = excluded.DateModified,
+                DateTaken = excluded.DateTaken,
+                Width = excluded.Width,
+                Height = excluded.Height,
+                Orientation = excluded.Orientation,
+                CameraModel = excluded.CameraModel,
+                Hash = excluded.Hash,
+                ThumbnailPath = COALESCE(Photos.ThumbnailPath, excluded.ThumbnailPath),
+                ThumbnailMediumPath = COALESCE(Photos.ThumbnailMediumPath, excluded.ThumbnailMediumPath),
+                IsMissing = 0,
+                UpdatedAt = excluded.UpdatedAt;
+            """;
+        BindInsertParameters(command, photo);
+    }
+
+    private static void BindInsertParameters(SqliteCommand command, NewPhotoRecord photo)
+    {
         command.Parameters.AddWithValue("$folderId", photo.FolderId);
-        command.Parameters.AddWithValue("$filePath", photo.FilePath);
+        command.Parameters.AddWithValue("$filePath", CatalogPathNormalizer.NormalizeFilePath(photo.FilePath));
         command.Parameters.AddWithValue("$fileName", photo.FileName);
         command.Parameters.AddWithValue("$extension", (object?)photo.Extension ?? DBNull.Value);
         command.Parameters.AddWithValue("$fileSize", photo.FileSize);
@@ -341,8 +386,6 @@ public sealed class PhotoRepository
             CreatedAt = ParseDate(reader.GetString(19)) ?? DateTimeOffset.MinValue,
             UpdatedAt = ParseDate(reader.GetString(20)) ?? DateTimeOffset.MinValue
         };
-
-    private static string NormalizeFilePath(string path) => Path.GetFullPath(path);
 
     private static object ToDbDate(DateTimeOffset? value) =>
         value is null ? DBNull.Value : value.Value.UtcDateTime.ToString("O");
