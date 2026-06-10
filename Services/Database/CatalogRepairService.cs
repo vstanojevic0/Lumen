@@ -65,15 +65,12 @@ public sealed class CatalogRepairService
             return plan;
         }
 
-        if (ShouldVerifyDiskCoverage(state, dbCount))
+        var diskCount = CountPhotosOnDisk(roots, cancellationToken);
+        if (diskCount > 0 && dbCount < diskCount * MinimumCatalogCoverageRatio)
         {
-            var diskCount = CountPhotosOnDisk(roots, cancellationToken);
-            if (diskCount > 0 && dbCount < diskCount * MinimumCatalogCoverageRatio)
-            {
-                plan.NeedsFullRescan = true;
-                plan.Reason = "finishing library index";
-                return plan;
-            }
+            plan.NeedsFullRescan = true;
+            plan.Reason = "finishing library index";
+            return plan;
         }
 
         return plan;
@@ -105,23 +102,6 @@ public sealed class CatalogRepairService
         summary.DuplicatesRemoved = RemoveDuplicatePaths();
         _scanState.SetCatalogRepairVersion(CurrentRepairVersion);
         return summary;
-    }
-
-    private static bool ShouldVerifyDiskCoverage(ScanStateRecord state, int dbCount)
-    {
-        if (!string.IsNullOrWhiteSpace(state.LastSyncError))
-            return true;
-
-        if (state.LastFullScanAt is null)
-            return true;
-
-        if (dbCount < 250)
-            return true;
-
-        if (Version.TryParse(state.AppVersion, out var version) && version < new Version(0, 3, 4))
-            return true;
-
-        return false;
     }
 
     private int CountPhotosOnDisk(IReadOnlyList<string> roots, CancellationToken cancellationToken)

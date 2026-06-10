@@ -27,7 +27,7 @@ public sealed class CatalogPhotoRecord
     public PhotoEntry ToPhotoEntry() =>
         new(
             FilePath,
-            DateTaken ?? DateModified,
+            DateCreated ?? DateTaken ?? DateModified,
             FileSize,
             Width,
             Height);

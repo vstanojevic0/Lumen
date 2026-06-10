@@ -25,6 +25,10 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
     private readonly ScanStateRepository _scanState;
     private readonly CancellationTokenSource _lifetimeCts = new();
     private TopLevel? _topLevel;
+    private int _galleryCacheGeneration = -1;
+    private bool _galleryCacheFavoritesOnly;
+    private string? _galleryCacheFolderPath;
+    private WebGallerySnapshot? _galleryCache;
 
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private string _statusText = "Preparing library…";
@@ -55,6 +59,24 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
 
     public WebGallerySnapshot GetWebGallerySnapshot(string? folderPath = null, bool favoritesOnly = false)
     {
+        var generation = _index.Generation;
+        if (_galleryCache is not null &&
+            _galleryCacheGeneration == generation &&
+            _galleryCacheFavoritesOnly == favoritesOnly &&
+            string.Equals(_galleryCacheFolderPath, folderPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return _galleryCache with
+            {
+                TotalCount = _index.TotalPhotoCount(),
+                StatusText = favoritesOnly
+                    ? $"Favorites · {_galleryCache.Sections.Sum(s => s.Photos.Count):N0} photos"
+                    : folderPath is not null
+                        ? $"{FormatFolderTitle(folderPath)} · {_galleryCache.Sections.Sum(s => s.Photos.Count):N0} photos"
+                        : StatusText,
+                IsBusy = IsBusy
+            };
+        }
+
         var favorites = GetFavoritePathSet();
         var sections = BuildGallerySections(folderPath, favoritesOnly, favorites)
             .Select(s => new WebGallerySectionDto(
@@ -70,7 +92,18 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                 ? $"{FormatFolderTitle(folderPath)} · {visibleCount:N0} photos"
                 : StatusText;
 
-        return new WebGallerySnapshot(visibleCount, status, IsBusy, sections);
+        var snapshot = new WebGallerySnapshot(visibleCount, status, IsBusy, sections);
+        _galleryCacheGeneration = generation;
+        _galleryCacheFavoritesOnly = favoritesOnly;
+        _galleryCacheFolderPath = folderPath;
+        _galleryCache = snapshot;
+        return snapshot;
+    }
+
+    private void InvalidateGalleryCache()
+    {
+        _galleryCache = null;
+        _galleryCacheGeneration = -1;
     }
 
     public IReadOnlyList<WebFolderDto> GetWebFolderTree() =>
@@ -92,6 +125,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         settings.FavoritePaths = set.OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
         _store.Save(settings);
         _photos.SetFavorite(absolutePath, favorite);
+        InvalidateGalleryCache();
         LibraryUpdated?.Invoke();
     }
 
@@ -241,15 +275,18 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                     StatusText = p.Phase switch
                     {
                         "Sync complete" => $"Library · {TotalPhotoCount:N0} photos",
+                        "Continuing index…" => $"Indexing… {TotalPhotoCount:N0} photos so far",
                         _ => p.ProcessedFiles > 0
                             ? $"{p.Phase} {p.ProcessedFiles:N0} files"
                             : p.Phase
                     };
 
                     if (p.Phase.StartsWith("Updated ", StringComparison.Ordinal) ||
-                        p.Phase == "Sync complete" ||
-                        (p.ProcessedFiles > 0 && p.ProcessedFiles % 2000 == 0))
+                        p.Phase is "Sync complete" or "Continuing index…")
+                    {
+                        InvalidateGalleryCache();
                         LibraryUpdated?.Invoke();
+                    }
                 });
             });
 
@@ -260,12 +297,13 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                 progress,
                 _lifetimeCts.Token).ConfigureAwait(false);
 
-            _scanState.ClearLastSyncError();
-
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 TotalPhotoCount = _index.TotalPhotoCount();
-                if (!fullRescan && TotalPhotoCount > 0)
+                var syncError = _scanState.Get().LastSyncError;
+                if (!string.IsNullOrWhiteSpace(syncError))
+                    StatusText = syncError;
+                else if (TotalPhotoCount > 0)
                     StatusText = $"Library · {TotalPhotoCount:N0} photos";
             });
         }
@@ -298,6 +336,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 IsBusy = false;
+                InvalidateGalleryCache();
                 LibraryUpdated?.Invoke();
             });
         }
@@ -348,15 +387,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var sections = new List<GallerySection>();
 
-        var scanRoots = _index.ScanRoots
-            .Select(Path.TrimEndingDirectorySeparator)
-            .Where(r => !string.IsNullOrWhiteSpace(r))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        foreach (var bucket in _index.GetPhotosGroupedByFolder(folderPath)
-                     .OrderBy(b => GetScanRootSortKey(b.FolderPath, scanRoots))
-                     .ThenBy(b => b.FolderPath, StringComparer.OrdinalIgnoreCase))
+        foreach (var bucket in _index.GetPhotosGroupedByFolder(folderPath))
         {
             var photos = new List<GalleryPhoto>();
 
@@ -370,20 +401,26 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                 if (favoritesOnly && !favoritePaths.Contains(photo.AbsolutePath))
                     continue;
 
-                photos.Add(new GalleryPhoto(photo.AbsolutePath, Path.GetFileName(photo.AbsolutePath)));
+                photos.Add(new GalleryPhoto(
+                    photo.AbsolutePath,
+                    Path.GetFileName(photo.AbsolutePath),
+                    photo.CapturedAt));
             }
 
             if (photos.Count == 0)
                 continue;
 
-            var title = FormatFolderSectionTitle(bucket.FolderPath, folderPath);
+            var title = FormatFolderTitle(bucket.FolderPath);
             sections.Add(new GallerySection(
                 $"{title} ({photos.Count:N0} Photos)",
                 bucket.FolderPath,
                 photos));
         }
 
-        return sections;
+        return sections
+            .OrderByDescending(s => s.Photos.FirstOrDefault()?.CreatedAt ?? DateTimeOffset.MinValue)
+            .ThenBy(s => s.Title, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private HashSet<string> GetFavoritePathSet()
@@ -395,23 +432,6 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         return _store.Load().FavoritePaths
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static int GetScanRootSortKey(string folderPath, IReadOnlyList<string> scanRoots)
-    {
-        folderPath = Path.TrimEndingDirectorySeparator(folderPath);
-
-        for (var i = 0; i < scanRoots.Count; i++)
-        {
-            var root = Path.TrimEndingDirectorySeparator(scanRoots[i]);
-            if (!folderPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            if (folderPath.Length == root.Length || folderPath[root.Length] == Path.DirectorySeparatorChar)
-                return i;
-        }
-
-        return scanRoots.Count;
     }
 
     private static WebFolderDto MapWebFolder(FolderBrowseNode node) =>
@@ -426,51 +446,22 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         return headerText;
     }
 
-    private string FormatFolderSectionTitle(string directoryPath, string? selectedRoot)
-    {
-        if (string.IsNullOrWhiteSpace(selectedRoot))
-            return FormatFolderTitle(directoryPath);
-
-        selectedRoot = Path.TrimEndingDirectorySeparator(selectedRoot);
-        directoryPath = Path.TrimEndingDirectorySeparator(directoryPath);
-
-        if (string.Equals(directoryPath, selectedRoot, StringComparison.OrdinalIgnoreCase))
-            return FormatFolderTitle(directoryPath);
-
-        if (directoryPath.Length > selectedRoot.Length &&
-            directoryPath.StartsWith(selectedRoot, StringComparison.OrdinalIgnoreCase) &&
-            directoryPath[selectedRoot.Length] == Path.DirectorySeparatorChar)
-        {
-            var rel = Path.GetRelativePath(selectedRoot, directoryPath);
-            if (!string.IsNullOrEmpty(rel) && rel != ".")
-                return rel.Replace(Path.DirectorySeparatorChar, '/');
-        }
-
-        return FormatFolderTitle(directoryPath);
-    }
-
     private string FormatFolderTitle(string directoryPath)
     {
         directoryPath = Path.TrimEndingDirectorySeparator(directoryPath);
         if (string.IsNullOrEmpty(directoryPath))
             return "Unknown folder";
 
-        foreach (var root in _index.ScanRoots
-                     .Select(Path.TrimEndingDirectorySeparator)
-                     .Where(r => !string.IsNullOrWhiteSpace(r))
-                     .OrderByDescending(r => r.Length))
+        if (OperatingSystem.IsWindows() && directoryPath.Length >= 2 && directoryPath[1] == ':')
         {
-            if (!directoryPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-                continue;
-
-            var rel = Path.GetRelativePath(root, directoryPath);
-            if (string.IsNullOrEmpty(rel) || rel == ".")
-                return Path.GetFileName(root) ?? root;
-
-            return rel.Replace(Path.DirectorySeparatorChar, '/');
+            var driveRoot = directoryPath[..2];
+            if (directoryPath.Length == 2 ||
+                (directoryPath.Length == 3 && directoryPath[2] == Path.DirectorySeparatorChar))
+                return driveRoot;
         }
 
-        return directoryPath;
+        var leaf = Path.GetFileName(directoryPath);
+        return string.IsNullOrEmpty(leaf) ? directoryPath : leaf;
     }
 
     private void PruneOverlappingScanRoots(AppSettings settings)
@@ -583,7 +574,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         _lifetimeCts.Dispose();
     }
 
-    private sealed record GalleryPhoto(string Path, string Title);
+    private sealed record GalleryPhoto(string Path, string Title, DateTimeOffset? CreatedAt);
 
     private sealed record GallerySection(string Title, string FolderPath, List<GalleryPhoto> Photos);
 }

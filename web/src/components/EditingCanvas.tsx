@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Copy, Flag, Star } from "lucide-react";
+import { Copy, Flag, RotateCcw, RotateCw, Star } from "lucide-react";
 import { buildPreviewStyle } from "../lib/filters";
-import { mediaPreviewUrl } from "../lumen/mediaUrls";
+import { mediaFullUrl, mediaPreviewUrl } from "../lumen/mediaUrls";
 import { useMediaBase } from "../lumen/useMediaBase";
 import type { AspectRatio, EditState, PhotoItem } from "../types";
 import { Filmstrip } from "./Filmstrip";
@@ -15,6 +15,8 @@ interface EditingCanvasProps {
   onToggleFavorite: () => void;
   onToggleFlag: () => void;
   onCopyEdits: () => void;
+  onRotateLeft: () => void;
+  onRotateRight: () => void;
 }
 
 function aspectClass(ratio: AspectRatio): string {
@@ -39,12 +41,17 @@ export function EditingCanvas({
   onToggleFavorite,
   onToggleFlag,
   onCopyEdits,
+  onRotateLeft,
+  onRotateRight,
 }: EditingCanvasProps) {
-  const { imageStyle, warmOverlay, coolOverlay, tintOverlay } = buildPreviewStyle(edits);
+  const { imageStyle, frameStyle, warmOverlay, coolOverlay, tintOverlay } = buildPreviewStyle(edits);
   const scale = zoom / 100;
   const mediaBase = useMediaBase();
-  const displaySrc =
+  const previewSrc =
     photo.path && mediaBase ? mediaPreviewUrl(photo.path, mediaBase) : photo.src;
+  const fullSrc =
+    photo.path && mediaBase ? mediaFullUrl(photo.path, mediaBase) : photo.src;
+  const [displaySrc, setDisplaySrc] = useState(previewSrc || fullSrc);
   const waitingForHost = Boolean(photo.path) && !mediaBase;
   const [previewReady, setPreviewReady] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
@@ -52,11 +59,26 @@ export function EditingCanvas({
   useEffect(() => {
     setPreviewReady(false);
     setPreviewFailed(false);
-  }, [photo.path, photo.src, mediaBase]);
+    setDisplaySrc(previewSrc || fullSrc);
+  }, [photo.path, photo.src, mediaBase, previewSrc, fullSrc]);
+
+  useEffect(() => {
+    if (!fullSrc || fullSrc === previewSrc || !previewReady) return;
+
+    const loader = new Image();
+    loader.decoding = "async";
+    loader.onload = () => setDisplaySrc(fullSrc);
+    loader.onerror = () => {};
+    loader.src = fullSrc;
+    return () => {
+      loader.onload = null;
+      loader.onerror = null;
+    };
+  }, [fullSrc, previewSrc, previewReady]);
 
   useEffect(() => {
     if (!displaySrc || previewReady || previewFailed) return;
-    const t = window.setTimeout(() => setPreviewFailed(true), 15000);
+    const t = window.setTimeout(() => setPreviewFailed(true), 45000);
     return () => window.clearTimeout(t);
   }, [displaySrc, previewFailed, previewReady]);
 
@@ -67,7 +89,7 @@ export function EditingCanvas({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-transparent">
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
         <div
-          className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-9 py-7"
+          className="flex min-h-0 flex-1 items-center justify-center overflow-visible px-9 py-7"
           data-photo-viewer
         >
           <div
@@ -78,11 +100,15 @@ export function EditingCanvas({
             }}
           >
             <div
-              className={`relative inline-flex max-h-full max-w-full items-center justify-center overflow-hidden rounded-sm border border-white/18 bg-black/25 shadow-2xl shadow-black/55 ${
+              className="flex items-center justify-center"
+              style={frameStyle}
+            >
+            <div
+              className={`relative inline-flex max-h-full max-w-full items-center justify-center overflow-visible rounded-sm border border-white/18 bg-black/25 shadow-2xl shadow-black/55 ${
                 aspectClass(edits.aspectRatio)
               } ${edits.cropMode ? "ring-1 ring-white/20" : ""}`}
             >
-              <div className="relative flex min-h-[200px] min-w-[280px] items-center justify-center">
+              <div className="relative flex min-h-[200px] min-w-[280px] max-h-[calc(100vh-11rem)] max-w-[min(100%,calc(100vw-18rem))] items-center justify-center">
                 {previewFailed ? (
                   <div className="flex h-[min(60vh,480px)] w-[min(80vw,640px)] flex-col items-center justify-center rounded-lg bg-white/5 px-8 text-center">
                     <span className="text-sm font-medium text-white/60">Preview unavailable</span>
@@ -103,7 +129,7 @@ export function EditingCanvas({
                     key={displaySrc}
                     src={displaySrc}
                     alt={photo.title}
-                    className={`block max-h-[min(72vh,720px)] max-w-full object-contain transition-opacity duration-200 ${
+                    className={`block max-h-[calc(100vh-11rem)] max-w-[min(100%,calc(100vw-18rem))] object-contain transition-opacity duration-200 ${
                       previewReady ? "opacity-100" : "opacity-0"
                     }`}
                     style={imageStyle}
@@ -141,10 +167,31 @@ export function EditingCanvas({
                 </div>
               ) : null}
             </div>
+            </div>
           </div>
         </div>
 
         <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#132235]/82 px-3 py-2 shadow-lg shadow-black/30 backdrop-blur">
+          <button
+            type="button"
+            onClick={onRotateLeft}
+            title="Rotate left 90°"
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10 hover:text-white"
+          >
+            <RotateCcw size={14} />
+            Left
+          </button>
+
+          <button
+            type="button"
+            onClick={onRotateRight}
+            title="Rotate right 90°"
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10 hover:text-white"
+          >
+            <RotateCw size={14} />
+            Right
+          </button>
+
           <button
             type="button"
             onClick={onToggleFavorite}

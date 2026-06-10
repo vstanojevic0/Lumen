@@ -1,5 +1,6 @@
 export type AspectRatio = "free" | "1:1" | "4:3" | "16:9";
 export type AppMode = "library" | "edit";
+export type PhotoOrientation = 0 | 90 | 180 | 270;
 
 export interface EditValues {
   exposure: number;
@@ -34,6 +35,7 @@ export interface PhotoItem {
 }
 
 export interface EditState extends EditValues {
+  orientation: PhotoOrientation;
   cropMode: boolean;
   aspectRatio: AspectRatio;
   grayscale: boolean;
@@ -54,6 +56,7 @@ export const defaultEditValues = (): EditState => ({
   clarity: 0,
   noiseReduction: 0,
   rotation: 0,
+  orientation: 0,
   cropMode: false,
   aspectRatio: "free",
   grayscale: false,

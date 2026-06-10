@@ -1,5 +1,6 @@
-import { Download, RotateCcw, X } from "lucide-react";
+import { Download, RotateCcw, RotateCw, X } from "lucide-react";
 import { presets, type PresetId } from "../lib/presets";
+import { rotateOrientation } from "../lib/rotation";
 import type { AspectRatio, EditState, PhotoItem } from "../types";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { PresetButton } from "./PresetButton";
@@ -217,7 +218,34 @@ export function RightEditPanel({
           />
         </CollapsibleSection>
 
-        <CollapsibleSection title="Crop & Straighten">
+        <CollapsibleSection title="Rotate & Straighten">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => onChange("orientation", rotateOrientation(edits.orientation, -90))}
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-2.5 text-xs text-white/75 hover:bg-white/10"
+            >
+              <RotateCcw size={14} />
+              Left 90°
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange("orientation", rotateOrientation(edits.orientation, 90))}
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-2.5 text-xs text-white/75 hover:bg-white/10"
+            >
+              <RotateCw size={14} />
+              Right 90°
+            </button>
+          </div>
+          {edits.orientation !== 0 ? (
+            <button
+              type="button"
+              onClick={() => onChange("orientation", 0)}
+              className="w-full rounded-lg border border-white/10 bg-white/5 py-2 text-xs text-white/70 hover:bg-white/10"
+            >
+              Reset rotation ({edits.orientation}°)
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => onChange("cropMode", !edits.cropMode)}
@@ -246,7 +274,7 @@ export function RightEditPanel({
             ))}
           </div>
           <SliderControl
-            label="Rotation"
+            label="Straighten"
             value={edits.rotation}
             min={-45}
             max={45}
@@ -259,7 +287,7 @@ export function RightEditPanel({
             onClick={() => onChange("rotation", 0)}
             className="w-full rounded-lg border border-white/10 bg-white/5 py-2 text-xs text-white/70 hover:bg-white/10"
           >
-            Straighten
+            Reset straighten
           </button>
         </CollapsibleSection>
 

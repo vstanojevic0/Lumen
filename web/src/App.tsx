@@ -1,28 +1,22 @@
-import { Heart } from "lucide-react";
 import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
-import {
-  findActiveFolderFromScroll,
-  findJumpSectionPath,
-  normalizeFolderPath,
-} from "./lumen/folderScroll";
 import { EditingCanvas } from "./components/EditingCanvas";
-import { HostPhotoImage } from "./components/HostPhotoImage";
 import { RightEditPanel } from "./components/RightEditPanel";
 import { Sidebar } from "./components/Sidebar";
 import { TopToolbar } from "./components/TopToolbar";
+import { VirtualLibraryGrid } from "./components/VirtualLibraryGrid";
 import { useEditHistory } from "./hooks/useEditHistory";
 import { useEditNavigation } from "./hooks/useEditNavigation";
 import { usePhotoNavigation } from "./hooks/usePhotoNavigation";
 import { filmstripWindow } from "./lumen/mediaUrls";
 import { useLumenLibrary } from "./lumen/useLumenLibrary";
 import { presets, type PresetId } from "./lib/presets";
+import { rotateOrientation } from "./lib/rotation";
 import { defaultEditValues, type AppMode, type PhotoItem } from "./types";
 
 export default function App() {
@@ -97,6 +91,14 @@ export default function App() {
     void navigator.clipboard.writeText(JSON.stringify(edits, null, 2));
     setShowCopiedToast(true);
   }, [edits]);
+
+  const handleRotateLeft = useCallback(() => {
+    update("orientation", rotateOrientation(edits.orientation, -90));
+  }, [edits.orientation, update]);
+
+  const handleRotateRight = useCallback(() => {
+    update("orientation", rotateOrientation(edits.orientation, 90));
+  }, [edits.orientation, update]);
 
   useEffect(() => {
     if (!showCopiedToast) return;
@@ -209,6 +211,8 @@ export default function App() {
               onToggleFavorite={handleToggleFavorite}
               onToggleFlag={() => updatePhoto({ flagged: !photo.flagged })}
               onCopyEdits={handleCopyEdits}
+              onRotateLeft={handleRotateLeft}
+              onRotateRight={handleRotateRight}
             />
             <RightEditPanel
               photo={photo}
@@ -221,23 +225,27 @@ export default function App() {
               onExport={handleExport}
             />
           </div>
-        ) : (
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-            <LibraryGrid
-              sections={sections}
-              selectedId={selectedId}
-              zoom={zoom}
-              folderJumpTarget={library.folderJumpTarget}
-              onActiveFolderChange={library.setActiveFolderPath}
-              onJumpComplete={library.clearFolderJumpTarget}
-              onSelect={(id) => {
-                handleSelectPhoto(id);
-                enterEdit();
-                setZoom(100);
-              }}
-            />
-          </div>
-        )}
+        ) : null}
+
+        <div
+          className={`min-h-0 min-w-0 flex-1 overflow-hidden ${mode === "library" ? "flex" : "hidden"}`}
+          aria-hidden={mode !== "library"}
+        >
+          <VirtualLibraryGrid
+            sections={sections}
+            selectedId={selectedId}
+            zoom={zoom}
+            libraryVisible={mode === "library"}
+            folderJumpTarget={library.folderJumpTarget}
+            onActiveFolderChange={library.setActiveFolderPath}
+            onJumpComplete={library.clearFolderJumpTarget}
+            onSelect={(id) => {
+              handleSelectPhoto(id);
+              enterEdit();
+              setZoom(100);
+            }}
+          />
+        </div>
       </div>
 
       {showCopiedToast ? (
@@ -304,277 +312,6 @@ function EmptyLibraryState({
           Add folder
         </button>
       ) : null}
-    </div>
-  );
-}
-
-function LibraryGrid({
-  sections,
-  selectedId,
-  zoom,
-  folderJumpTarget,
-  onActiveFolderChange,
-  onJumpComplete,
-  onSelect,
-}: {
-  sections: { title: string; folderPath: string; photos: PhotoItem[] }[];
-  selectedId: string;
-  zoom: number;
-  folderJumpTarget: string | null;
-  onActiveFolderChange: (path: string | null) => void;
-  onJumpComplete: () => void;
-  onSelect: (id: string) => void;
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const sectionRefs = useRef(new Map<string, HTMLElement>());
-  const markerRefs = useRef(new Map<string, HTMLElement>());
-  const scrollSpyPausedRef = useRef(false);
-  const forcedFolderRef = useRef<string | null>(null);
-  const activeFolderRef = useRef<string | null>(null);
-  const [flashFolderPath, setFlashFolderPath] = useState<string | null>(null);
-
-  const registerSectionRef = useCallback(
-    (folderPath: string, element: HTMLElement | null) => {
-      if (element) sectionRefs.current.set(folderPath, element);
-      else sectionRefs.current.delete(folderPath);
-    },
-    [],
-  );
-
-  const registerMarkerRef = useCallback(
-    (folderPath: string, element: HTMLElement | null) => {
-      if (element) markerRefs.current.set(folderPath, element);
-      else markerRefs.current.delete(folderPath);
-    },
-    [],
-  );
-
-  const publishActiveFolder = useCallback(
-    (path: string | null) => {
-      if (!path) return;
-      const normalized = normalizeFolderPath(path).toLowerCase();
-      if (activeFolderRef.current === normalized) return;
-      activeFolderRef.current = normalized;
-      onActiveFolderChange(path);
-    },
-    [onActiveFolderChange],
-  );
-
-  useEffect(() => {
-    if (!folderJumpTarget) {
-      scrollSpyPausedRef.current = false;
-    }
-  }, [folderJumpTarget]);
-
-  useEffect(() => {
-    activeFolderRef.current = null;
-  }, [sections]);
-
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container || sections.length === 0) return;
-
-    let frame = 0;
-
-    const updateActiveFolder = () => {
-      if (scrollSpyPausedRef.current) return;
-      if (forcedFolderRef.current) {
-        publishActiveFolder(forcedFolderRef.current);
-        return;
-      }
-      const active = findActiveFolderFromScroll(
-        sections,
-        container,
-        markerRefs.current,
-        sectionRefs.current,
-      );
-      publishActiveFolder(active);
-    };
-
-    const onScroll = () => {
-      if (!forcedFolderRef.current) {
-        scrollSpyPausedRef.current = false;
-      }
-      if (frame) return;
-      frame = window.requestAnimationFrame(() => {
-        frame = 0;
-        updateActiveFolder();
-      });
-    };
-
-    const observer = new IntersectionObserver(
-      () => updateActiveFolder(),
-      {
-        root: container,
-        rootMargin: "-72px 0px -55% 0px",
-        threshold: [0, 0.01, 0.1, 0.25, 0.5, 1],
-      },
-    );
-
-    const observeMarkers = () => {
-      observer.disconnect();
-      for (const section of sections) {
-        const marker = markerRefs.current.get(section.folderPath);
-        if (marker) observer.observe(marker);
-      }
-      updateActiveFolder();
-    };
-
-    observeMarkers();
-    const markerTimer = window.setTimeout(observeMarkers, 0);
-
-    container.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-
-    return () => {
-      window.clearTimeout(markerTimer);
-      observer.disconnect();
-      container.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, [sections, publishActiveFolder]);
-
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container || !folderJumpTarget) return;
-
-    scrollSpyPausedRef.current = true;
-
-    const finishJump = (path: string | null) => {
-      if (path) {
-        activeFolderRef.current = null;
-        forcedFolderRef.current = path;
-        publishActiveFolder(path);
-      }
-      scrollSpyPausedRef.current = false;
-      forcedFolderRef.current = null;
-      onJumpComplete();
-    };
-
-    if (folderJumpTarget === "__top__") {
-      const firstPath = sections[0]?.folderPath ?? null;
-      forcedFolderRef.current = firstPath;
-      activeFolderRef.current = null;
-      publishActiveFolder(firstPath);
-      container.scrollTo({ top: 0, behavior: "smooth" });
-
-      const topTimer = window.setTimeout(() => finishJump(firstPath), 700);
-      return () => window.clearTimeout(topTimer);
-    }
-
-    const sectionPath = findJumpSectionPath(sections, folderJumpTarget);
-    if (!sectionPath) {
-      finishJump(null);
-      return;
-    }
-
-    const element = sectionRefs.current.get(sectionPath);
-    if (!element) {
-      finishJump(sectionPath);
-      return;
-    }
-
-    forcedFolderRef.current = sectionPath;
-    activeFolderRef.current = null;
-    publishActiveFolder(sectionPath);
-    setFlashFolderPath(sectionPath);
-    element.scrollIntoView({ behavior: "smooth", block: "start" });
-
-    const flashTimer = window.setTimeout(() => setFlashFolderPath(null), 1200);
-
-    const onScrollEnd = () => finishJump(sectionPath);
-    container.addEventListener("scrollend", onScrollEnd, { once: true });
-
-    const resumeTimer = window.setTimeout(() => {
-      container.removeEventListener("scrollend", onScrollEnd);
-      finishJump(sectionPath);
-    }, 1100);
-
-    return () => {
-      container.removeEventListener("scrollend", onScrollEnd);
-      window.clearTimeout(flashTimer);
-      window.clearTimeout(resumeTimer);
-    };
-  }, [folderJumpTarget, sections, publishActiveFolder, onJumpComplete]);
-
-  if (sections.length === 0) {
-    return (
-      <div className="flex flex-1 items-center justify-center px-8 text-center">
-        <div className="lumen-surface max-w-sm rounded-2xl px-8 py-7">
-          <div className="text-sm font-medium text-white/80">Your library is empty.</div>
-        </div>
-      </div>
-    );
-  }
-
-  const tileMin = Math.round(96 + zoom * 0.6);
-
-  return (
-    <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto px-7 py-5 scroll-smooth" data-photo-scroll-container>
-      {sections.map((section, index) => (
-        <section
-          key={section.folderPath}
-          ref={(element) => registerSectionRef(section.folderPath, element)}
-          data-folder-path={section.folderPath}
-          className={`lumen-folder-section ${index === 0 ? "" : "mt-2"} ${
-            flashFolderPath === section.folderPath ? "lumen-folder-section--flash" : ""
-          }`}
-        >
-          {index > 0 ? (
-            <div
-              ref={(element) => registerMarkerRef(section.folderPath, element)}
-              data-folder-marker
-              className="lumen-folder-divider mb-4 mt-1"
-            >
-              <span className="lumen-folder-divider__label">{section.title}</span>
-            </div>
-          ) : (
-            <div
-              ref={(element) => registerMarkerRef(section.folderPath, element)}
-              data-folder-marker
-              className="mb-3 flex items-center gap-2"
-            >
-              <span className="text-[11px] font-medium uppercase tracking-wide text-white/38">
-                {section.title}
-              </span>
-              <span className="h-px flex-1 bg-white/8" />
-            </div>
-          )}
-          <div
-            className="grid gap-2.5 pb-5"
-            style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${tileMin}px, 1fr))` }}
-          >
-            {section.photos.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => onSelect(p.id)}
-                className={`group relative aspect-square overflow-hidden rounded-lg border bg-white/5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-white/22 hover:shadow-2xl hover:shadow-black/25 ${
-                  p.id === selectedId
-                    ? "border-[#1e88ff] ring-2 ring-[#1e88ff]/80"
-                    : "border-white/8"
-                }`}
-              >
-                <HostPhotoImage
-                  path={p.path}
-                  alt={p.title}
-                  className="h-full w-full object-cover"
-                />
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/68 via-black/20 to-transparent p-2.5 opacity-0 transition group-hover:opacity-100">
-                  <div className="truncate text-xs font-medium text-white/92">{p.title}</div>
-                </div>
-                {p.favorite ? (
-                  <Heart
-                    size={16}
-                    className="absolute right-2 top-2 fill-[#ff625b] text-[#ff625b] drop-shadow"
-                  />
-                ) : null}
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
     </div>
   );
 }

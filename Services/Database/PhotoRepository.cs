@@ -21,7 +21,7 @@ public sealed class PhotoRepository
                 IsMissing, IsFavorite, Rating, CreatedAt, UpdatedAt
             FROM Photos
             WHERE IsMissing = 0
-            ORDER BY COALESCE(DateTaken, DateModified) DESC, FilePath COLLATE NOCASE;
+            ORDER BY COALESCE(DateCreated, DateTaken, DateModified) DESC, FilePath COLLATE NOCASE;
             """;
 
         return ReadAll(command);

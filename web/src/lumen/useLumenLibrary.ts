@@ -125,6 +125,12 @@ export function useLumenLibrary() {
     });
     const offLibrary = onLumenEvent("libraryUpdated", () => {
       void (async () => {
+        const nextStatus = await lumenCall<WebStatusDto>("getStatus");
+        applyMediaBase(nextStatus.mediaBaseUrl);
+        setStatus(nextStatus);
+
+        if (nextStatus.isBusy) return;
+
         const [nextFolders, nextGallery] = await Promise.all([
           lumenCall<WebFolderDto[]>("getFolders"),
           lumenCall<WebGallerySnapshot>("getGallery", galleryQueryRef.current),

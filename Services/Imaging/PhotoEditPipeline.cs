@@ -43,7 +43,11 @@ public static class PhotoEditPipeline
         if (normalized is null)
             return null;
 
-        using var adjusted = ApplyAdjustments(normalized, edits);
+        using var oriented = ApplyOrientation(normalized, edits.Orientation);
+        if (oriented is null)
+            return null;
+
+        using var adjusted = ApplyAdjustments(oriented, edits);
         if (adjusted is null)
             return null;
 
@@ -104,6 +108,28 @@ public static class PhotoEditPipeline
 
         using var image = surface.Snapshot();
         return SKBitmap.FromImage(image);
+    }
+
+    private static SKBitmap? ApplyOrientation(SKBitmap source, int orientationDegrees)
+    {
+        orientationDegrees = ((orientationDegrees % 360) + 360) % 360;
+        if (orientationDegrees == 0)
+            return source.Copy();
+
+        var width = source.Width;
+        var height = source.Height;
+        var swap = orientationDegrees is 90 or 270;
+        var targetWidth = swap ? height : width;
+        var targetHeight = swap ? width : height;
+
+        var bitmap = new SKBitmap(new SKImageInfo(targetWidth, targetHeight, SKColorType.Rgba8888, SKAlphaType.Premul));
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.Black);
+        canvas.Translate(targetWidth / 2f, targetHeight / 2f);
+        canvas.RotateDegrees(orientationDegrees);
+        canvas.Translate(-width / 2f, -height / 2f);
+        canvas.DrawBitmap(source, 0, 0);
+        return bitmap;
     }
 
     private static SKBitmap EnsureRgba8888(SKBitmap bitmap)

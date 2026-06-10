@@ -36,6 +36,8 @@ public partial class App : Application
             var catalogRepair = new CatalogRepairService(database, photos, scanState, photoScanner);
             var metadata = new MetadataExtractorService();
             var thumbnails = new ThumbnailCacheService();
+            var thumbnailBacklog = new ThumbnailBacklogService(photos, thumbnails);
+            thumbnailBacklog.Start();
             var librarySync = new LibrarySyncService(
                 database,
                 folders,
@@ -43,7 +45,7 @@ public partial class App : Application
                 scanState,
                 photoScanner,
                 metadata,
-                thumbnails);
+                thumbnailBacklog);
 
             var media = new WebMediaHandler(photos);
             _loopbackServer = LumenEmbeddedWebServer.TryStart(media);
@@ -56,6 +58,7 @@ public partial class App : Application
 
             desktop.Exit += (_, _) =>
             {
+                thumbnailBacklog.Dispose();
                 _loopbackServer?.Dispose();
                 _loopbackServer = null;
                 WebUiSource.MediaBaseUri = null;

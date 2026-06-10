@@ -18,6 +18,7 @@ public sealed class LumenWebBridge
 
     private NativeWebView? _webView;
     private LibraryViewModel? _vm;
+    private CancellationTokenSource? _libraryPushDebounce;
 
     public void Attach(NativeWebView webView, LibraryViewModel viewModel)
     {
@@ -49,11 +50,48 @@ public sealed class LumenWebBridge
             _vm.PropertyChanged -= OnViewModelPropertyChanged;
         }
 
+        _libraryPushDebounce?.Cancel();
+        _libraryPushDebounce?.Dispose();
+        _libraryPushDebounce = null;
+
         _webView = null;
         _vm = null;
     }
 
-    private void OnLibraryUpdated() => _ = PushLibraryUpdatedAsync();
+    private void OnLibraryUpdated()
+    {
+        if (_vm?.IsBusy == true)
+        {
+            _ = PushStatusAsync();
+            ScheduleLibraryPush();
+            return;
+        }
+
+        _ = PushLibraryUpdatedAsync();
+    }
+
+    private void ScheduleLibraryPush()
+    {
+        _libraryPushDebounce?.Cancel();
+        _libraryPushDebounce?.Dispose();
+        _libraryPushDebounce = new CancellationTokenSource();
+        var token = _libraryPushDebounce.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(1200, token).ConfigureAwait(false);
+                if (_vm?.IsBusy == true)
+                    return;
+
+                await PushLibraryUpdatedAsync().ConfigureAwait(true);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }, token);
+    }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {

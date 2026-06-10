@@ -49,6 +49,10 @@ public sealed class LocalDatabaseService : IDisposable
         using var command = connection.CreateCommand();
         command.CommandText = """
             PRAGMA journal_mode = WAL;
+            PRAGMA synchronous = NORMAL;
+            PRAGMA temp_store = MEMORY;
+            PRAGMA mmap_size = 268435456;
+            PRAGMA cache_size = -64000;
             PRAGMA foreign_keys = ON;
 
             CREATE TABLE IF NOT EXISTS Folders (
@@ -85,6 +89,12 @@ public sealed class LocalDatabaseService : IDisposable
 
             CREATE INDEX IF NOT EXISTS IX_Photos_FolderId ON Photos(FolderId);
             CREATE INDEX IF NOT EXISTS IX_Photos_IsMissing ON Photos(IsMissing);
+            CREATE INDEX IF NOT EXISTS IX_Photos_VisibleSort ON Photos(
+                IsMissing,
+                DateCreated DESC,
+                DateTaken DESC,
+                DateModified DESC
+            );
 
             CREATE TABLE IF NOT EXISTS ScanState (
                 Id INTEGER PRIMARY KEY CHECK (Id = 1),

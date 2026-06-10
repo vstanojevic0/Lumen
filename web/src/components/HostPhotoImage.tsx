@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ImageOff } from "lucide-react";
 import { mediaPreviewUrl, mediaThumbUrl } from "../lumen/mediaUrls";
 import { useMediaBase } from "../lumen/useMediaBase";
+import { useVisibility } from "../lumen/useVisibility";
 
 export function HostPhotoImage({
   path,
@@ -18,8 +19,7 @@ export function HostPhotoImage({
   eager?: boolean;
 }) {
   const mediaBase = useMediaBase();
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(eager);
+  const { ref, visible } = useVisibility(Boolean(path), eager);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -27,23 +27,6 @@ export function HostPhotoImage({
     setLoaded(false);
     setFailed(false);
   }, [path, maxEdge, mediaBase]);
-
-  useEffect(() => {
-    if (eager) {
-      setVisible(true);
-      return;
-    }
-
-    const el = ref.current;
-    if (!el || !path) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => setVisible(entry.isIntersecting),
-      { rootMargin: "160px" },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [path, eager]);
 
   const waitingForHost = Boolean(path) && !mediaBase;
   const canLoad = Boolean(path && visible && mediaBase && !failed);

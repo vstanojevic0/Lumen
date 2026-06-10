@@ -76,3 +76,28 @@ export function findActiveFolderFromScroll(
 
   return sections[activeIndex]?.folderPath ?? sections[0].folderPath;
 }
+
+export function isElementVisibleInContainer(
+  element: HTMLElement,
+  container: HTMLElement,
+  padding = 48,
+): boolean {
+  const containerRect = container.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  return (
+    elementRect.top >= containerRect.top + padding &&
+    elementRect.bottom <= containerRect.bottom - padding
+  );
+}
+
+export function findSectionPathForPhotoId(
+  sections: { folderPath: string; photos: { id: string }[] }[],
+  photoId: string,
+): string | null {
+  for (const section of sections) {
+    if (section.photos.some((photo) => photo.id === photoId)) {
+      return section.folderPath;
+    }
+  }
+  return null;
+}

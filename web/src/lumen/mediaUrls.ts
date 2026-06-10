@@ -32,6 +32,12 @@ export function mediaPreviewUrl(path: string, base?: string | null): string {
   return `${root}media/preview?p=${encodeURIComponent(encodePhotoPath(path))}`;
 }
 
+export function mediaFullUrl(path: string, base?: string | null): string {
+  const root = base ?? getMediaBase();
+  if (!root) return "";
+  return `${root}media/full?p=${encodeURIComponent(encodePhotoPath(path))}`;
+}
+
 /** Keep filmstrip bounded so we do not decode thousands of thumbnails at once. */
 export function filmstripWindow(
   photos: PhotoItem[],

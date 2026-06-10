@@ -8,7 +8,7 @@ namespace Lumen.Services.Metadata;
 
 public sealed class MetadataExtractorService
 {
-    public ExtractedPhotoMetadata? TryExtract(string absolutePath)
+    public ExtractedPhotoMetadata? TryExtract(string absolutePath, bool includeDimensions = true)
     {
         if (string.IsNullOrWhiteSpace(absolutePath))
             return null;
@@ -27,9 +27,10 @@ public sealed class MetadataExtractorService
             var dateModified = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero);
             var dateTaken = dateModified;
             var extension = Path.GetExtension(absolutePath);
-            var dimensions = TryReadDimensions(absolutePath);
+            var dimensions = includeDimensions ? TryReadDimensions(absolutePath) : null;
 
-            if (!ScanPathExclusions.ShouldIncludeCatalogPhoto(
+            if (includeDimensions &&
+                !ScanPathExclusions.ShouldIncludeCatalogPhoto(
                     absolutePath,
                     extension,
                     info.Length,

@@ -122,11 +122,17 @@ public sealed class LumenEmbeddedWebServer : IDisposable
             return;
         }
 
-        var maxEdge = path.StartsWith("media/preview", StringComparison.OrdinalIgnoreCase)
-            ? WebMediaHandler.PreviewMaxEdge
-            : WebMediaHandler.ThumbMaxEdge;
+        MediaBytes? media;
+        if (path.StartsWith("media/full", StringComparison.OrdinalIgnoreCase))
+            media = await _media.GetOriginalAsync(photoPath, _shutdown.Token).ConfigureAwait(false);
+        else
+        {
+            var maxEdge = path.StartsWith("media/preview", StringComparison.OrdinalIgnoreCase)
+                ? WebMediaHandler.PreviewMaxEdge
+                : WebMediaHandler.ThumbMaxEdge;
+            media = await _media.GetMediaAsync(photoPath, maxEdge, _shutdown.Token).ConfigureAwait(false);
+        }
 
-        var media = await _media.GetMediaAsync(photoPath, maxEdge, _shutdown.Token).ConfigureAwait(false);
         if (media is null)
         {
             context.Response.StatusCode = 404;
@@ -135,7 +141,8 @@ public sealed class LumenEmbeddedWebServer : IDisposable
 
         context.Response.ContentType = media.ContentType;
         var bytes = media.Bytes;
-        context.Response.Headers.Add("Cache-Control", "private, max-age=3600");
+        var cacheSeconds = path.StartsWith("media/full", StringComparison.OrdinalIgnoreCase) ? 600 : 86400;
+        context.Response.Headers.Add("Cache-Control", $"private, max-age={cacheSeconds}");
         context.Response.ContentLength64 = bytes.Length;
         await context.Response.OutputStream.WriteAsync(bytes).ConfigureAwait(false);
         context.Response.StatusCode = 200;

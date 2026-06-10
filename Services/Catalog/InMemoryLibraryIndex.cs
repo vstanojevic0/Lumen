@@ -10,9 +10,19 @@ public sealed class InMemoryLibraryIndex : ILibraryIndex
 {
     private readonly object _gate = new();
     private List<PhotoEntry> _photos = new();
+    private int _generation;
 
     /// <summary>Absolute paths scanned (e.g. multiple drive roots on Windows).</summary>
     public List<string> ScanRoots { get; set; } = new();
+
+    public int Generation
+    {
+        get
+        {
+            lock (_gate)
+                return _generation;
+        }
+    }
 
     public async Task RebuildAsync(IAsyncEnumerable<PhotoEntry> source, CancellationToken cancellationToken = default)
     {
@@ -27,7 +37,10 @@ public sealed class InMemoryLibraryIndex : ILibraryIndex
         list.Sort(CompareByDateDescThenPath);
 
         lock (_gate)
+        {
             _photos = list;
+            _generation++;
+        }
     }
 
     public IReadOnlyList<FolderBrowseNode> GetFolderTree()

@@ -1,9 +1,11 @@
 import type { CSSProperties } from "react";
+import { totalRotationDegrees } from "./rotation";
 import type { EditState } from "../types";
 
 /** Maps edit sliders to CSS filter + overlay styles for live preview. */
 export function buildPreviewStyle(edits: EditState): {
   imageStyle: CSSProperties;
+  frameStyle: CSSProperties;
   warmOverlay: CSSProperties;
   coolOverlay: CSSProperties;
   tintOverlay: CSSProperties;
@@ -37,8 +39,11 @@ export function buildPreviewStyle(edits: EditState): {
   return {
     imageStyle: {
       filter: filters,
-      transform: `rotate(${edits.rotation}deg)`,
-      transition: "filter 80ms ease, transform 120ms ease",
+      transition: "filter 80ms ease",
+    },
+    frameStyle: {
+      transform: `rotate(${totalRotationDegrees(edits.orientation, edits.rotation)}deg)`,
+      transition: "transform 120ms ease",
     },
     warmOverlay: {
       background: "linear-gradient(135deg, rgba(255,180,80,0.35), transparent)",

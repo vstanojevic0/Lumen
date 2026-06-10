@@ -12,8 +12,10 @@ namespace Lumen.Services.Sync;
 /// </summary>
 public sealed class LibrarySyncService
 {
+    public const double MinimumCatalogCoverageRatio = 0.85;
+
     private const int DbBatchSize = 200;
-    private const int ThumbnailBatchSize = 8;
+    private const int IndexReloadInterval = 5000;
 
     private readonly LocalDatabaseService _database;
     private readonly FolderRepository _folders;
@@ -21,7 +23,8 @@ public sealed class LibrarySyncService
     private readonly ScanStateRepository _scanState;
     private readonly PhotoScannerService _scanner;
     private readonly MetadataExtractorService _metadata;
-    private readonly ThumbnailCacheService _thumbnails;
+    private readonly ThumbnailBacklogService _thumbnailBacklog;
+
     private readonly SemaphoreSlim _syncGate = new(1, 1);
 
     public LibrarySyncService(
@@ -31,7 +34,7 @@ public sealed class LibrarySyncService
         ScanStateRepository scanState,
         PhotoScannerService scanner,
         MetadataExtractorService metadata,
-        ThumbnailCacheService thumbnails)
+        ThumbnailBacklogService thumbnailBacklog)
     {
         _database = database;
         _folders = folders;
@@ -39,7 +42,7 @@ public sealed class LibrarySyncService
         _scanState = scanState;
         _scanner = scanner;
         _metadata = metadata;
-        _thumbnails = thumbnails;
+        _thumbnailBacklog = thumbnailBacklog;
     }
 
     public IReadOnlyList<PhotoEntry> LoadVisiblePhotos(IReadOnlyList<string> scanRoots)
@@ -67,8 +70,11 @@ public sealed class LibrarySyncService
         IProgress<SyncProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        if (!await _syncGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+        if (!fullRescan && !await _syncGate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
             return SyncSummary.Skipped();
+
+        if (fullRescan)
+            await _syncGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -100,7 +106,7 @@ public sealed class LibrarySyncService
             index.ScanRoots = roots;
             await index.RebuildAsync(ToAsyncEnumerable(Array.Empty<PhotoEntry>()), cancellationToken)
                 .ConfigureAwait(false);
-            return new SyncSummary(0, 0, 0, 0);
+            return new SyncSummary(0, 0, 0, 0, true);
         }
 
         var summary = new SyncAccumulator();
@@ -109,26 +115,60 @@ public sealed class LibrarySyncService
         foreach (var root in roots)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var folderId = _folders.UpsertFolder(root, Path.GetFileName(root) ?? root);
-            await SyncFolderAsync(folderId, root, summary, progress, fullRescan, cancellationToken)
-                .ConfigureAwait(false);
-            _folders.SetLastScannedAt(folderId, DateTimeOffset.UtcNow);
-            await ReloadIndexAsync(index, roots, cancellationToken).ConfigureAwait(false);
-            Report(progress, $"Updated {root}", summary, fullRescan);
+
+            try
+            {
+                var folderId = _folders.UpsertFolder(root, Path.GetFileName(root) ?? root);
+                await SyncFolderAsync(
+                        index,
+                        roots,
+                        folderId,
+                        root,
+                        summary,
+                        progress,
+                        fullRescan,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                _folders.SetLastScannedAt(folderId, DateTimeOffset.UtcNow);
+                await ReloadIndexAsync(index, roots, cancellationToken).ConfigureAwait(false);
+                Report(progress, $"Updated {root}", summary, fullRescan);
+            }
+            catch (Exception ex) when (FileSystemPhotoScanner.IsBenignAccessFailure(ex))
+            {
+                Report(progress, $"Skipped {root}", summary, fullRescan);
+            }
         }
+
+        await ReloadIndexAsync(index, roots, cancellationToken).ConfigureAwait(false);
+
+        var dbCount = _photos.CountVisible();
+        var diskCount = await Task.Run(() => CountPhotosOnDisk(roots, cancellationToken), cancellationToken)
+            .ConfigureAwait(false);
+        var complete = diskCount == 0 || dbCount >= diskCount * MinimumCatalogCoverageRatio;
 
         var now = DateTimeOffset.UtcNow;
         var version = typeof(LibrarySyncService).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
-        if (fullRescan)
-            _scanState.SetFullScanAt(now, version);
-        else
-            _scanState.SetIncrementalScanAt(now, version);
 
-        Report(progress, "Sync complete", summary, fullRescan);
-        return summary.ToSummary();
+        if (complete)
+        {
+            if (fullRescan)
+                _scanState.SetFullScanAt(now, version);
+            else
+                _scanState.SetIncrementalScanAt(now, version);
+        }
+        else
+        {
+            _scanState.SetLastSyncError(
+                $"Indexed {dbCount:N0} of ~{diskCount:N0} photos — scan will continue automatically.");
+        }
+
+        Report(progress, complete ? "Sync complete" : "Continuing index…", summary, fullRescan);
+        return summary.ToSummary(complete, dbCount, diskCount);
     }
 
     private async Task SyncFolderAsync(
+        InMemoryLibraryIndex index,
+        IReadOnlyList<string> scanRoots,
         long folderId,
         string root,
         SyncAccumulator summary,
@@ -139,22 +179,22 @@ public sealed class LibrarySyncService
         var existing = await Task.Run(() => _photos.GetByFolderId(folderId), cancellationToken)
             .ConfigureAwait(false);
 
-        var diskPaths = await Task.Run(
-            () => _scanner.EnumeratePhotoPaths(root, cancellationToken)
-                .Select(CatalogPathNormalizer.NormalizeFilePath)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase),
-            cancellationToken).ConfigureAwait(false);
-
-        summary.TotalFiles += diskPaths.Count;
+        var seenOnDisk = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var newRecords = new List<NewPhotoRecord>();
         var updates = new List<PhotoUpdateRecord>();
-        var thumbnailJobs = new List<ThumbnailJob>();
         var excludedIds = new List<long>();
+        var filesSinceReload = 0;
 
-        foreach (var path in diskPaths)
+        foreach (var rawPath in _scanner.EnumeratePhotoPaths(root, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var path = CatalogPathNormalizer.NormalizeFilePath(rawPath);
+            if (!seenOnDisk.Add(path))
+                continue;
+
+            summary.TotalFiles++;
             summary.ProcessedFiles++;
+            filesSinceReload++;
 
             if (summary.ProcessedFiles % 500 == 0)
                 Report(progress, $"Checking {root}…", summary, fullRescan);
@@ -169,7 +209,7 @@ public sealed class LibrarySyncService
 
             if (record is null)
             {
-                var extracted = await Task.Run(() => _metadata.TryExtract(path), cancellationToken)
+                var extracted = await Task.Run(() => _metadata.TryExtract(path, includeDimensions: false), cancellationToken)
                     .ConfigureAwait(false);
                 if (extracted is null)
                     continue;
@@ -195,7 +235,7 @@ public sealed class LibrarySyncService
 
                 if (newRecords.Count >= DbBatchSize)
                 {
-                    await FlushNewRecordsAsync(newRecords, thumbnailJobs, cancellationToken).ConfigureAwait(false);
+                    await FlushNewRecordsAsync(newRecords, cancellationToken).ConfigureAwait(false);
                     newRecords.Clear();
                 }
 
@@ -204,7 +244,7 @@ public sealed class LibrarySyncService
 
             if (record.IsMissing || fullRescan || NeedsUpdate(record, path))
             {
-                var extracted = await Task.Run(() => _metadata.TryExtract(path), cancellationToken)
+                var extracted = await Task.Run(() => _metadata.TryExtract(path, includeDimensions: false), cancellationToken)
                     .ConfigureAwait(false);
                 if (extracted is null)
                 {
@@ -216,7 +256,7 @@ public sealed class LibrarySyncService
                 var reuseThumbs = !record.IsMissing &&
                                   !fullRescan &&
                                   string.Equals(record.Hash, extracted.Hash, StringComparison.Ordinal) &&
-                                  _thumbnails.HasValidThumbnails(record.Id, record.ThumbnailPath, record.ThumbnailMediumPath);
+                                  !string.IsNullOrWhiteSpace(record.ThumbnailPath);
 
                 updates.Add(new PhotoUpdateRecord
                 {
@@ -225,8 +265,8 @@ public sealed class LibrarySyncService
                     DateCreated = extracted.DateCreated,
                     DateModified = extracted.DateModified,
                     DateTaken = extracted.DateTaken,
-                    Width = extracted.Width,
-                    Height = extracted.Height,
+                    Width = extracted.Width ?? record.Width,
+                    Height = extracted.Height ?? record.Height,
                     Hash = extracted.Hash,
                     ThumbnailPath = reuseThumbs ? record.ThumbnailPath : null,
                     ThumbnailMediumPath = reuseThumbs ? record.ThumbnailMediumPath : null,
@@ -234,7 +274,7 @@ public sealed class LibrarySyncService
                 });
 
                 if (!reuseThumbs)
-                    thumbnailJobs.Add(new ThumbnailJob(record.Id, path, ForceRegenerate: true));
+                    _thumbnailBacklog.Enqueue(record.Id, path, forceRegenerate: true);
 
                 summary.UpdatedFiles++;
 
@@ -244,10 +284,28 @@ public sealed class LibrarySyncService
                     updates.Clear();
                 }
             }
+
+            if (filesSinceReload >= IndexReloadInterval)
+            {
+                if (newRecords.Count > 0)
+                {
+                    await FlushNewRecordsAsync(newRecords, cancellationToken).ConfigureAwait(false);
+                    newRecords.Clear();
+                }
+
+                if (updates.Count > 0)
+                {
+                    await FlushUpdatesAsync(updates, cancellationToken).ConfigureAwait(false);
+                    updates.Clear();
+                }
+
+                await ReloadIndexAsync(index, scanRoots, cancellationToken).ConfigureAwait(false);
+                filesSinceReload = 0;
+            }
         }
 
         if (newRecords.Count > 0)
-            await FlushNewRecordsAsync(newRecords, thumbnailJobs, cancellationToken).ConfigureAwait(false);
+            await FlushNewRecordsAsync(newRecords, cancellationToken).ConfigureAwait(false);
 
         if (updates.Count > 0)
             await FlushUpdatesAsync(updates, cancellationToken).ConfigureAwait(false);
@@ -259,7 +317,7 @@ public sealed class LibrarySyncService
         }
 
         var missingIds = existing.Values
-            .Where(p => !p.IsMissing && !diskPaths.Contains(CatalogPathNormalizer.NormalizeFilePath(p.FilePath)))
+            .Where(p => !p.IsMissing && !seenOnDisk.Contains(CatalogPathNormalizer.NormalizeFilePath(p.FilePath)))
             .Select(p => p.Id)
             .ToList();
 
@@ -268,13 +326,10 @@ public sealed class LibrarySyncService
             await Task.Run(() => _photos.MarkMissingBatch(missingIds), cancellationToken).ConfigureAwait(false);
             summary.MissingFiles += missingIds.Count;
         }
-
-        await ProcessThumbnailJobsAsync(thumbnailJobs, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task FlushNewRecordsAsync(
         List<NewPhotoRecord> records,
-        List<ThumbnailJob> thumbnailJobs,
         CancellationToken cancellationToken)
     {
         if (records.Count == 0)
@@ -290,7 +345,7 @@ public sealed class LibrarySyncService
             if (saved is null)
                 continue;
 
-            thumbnailJobs.Add(new ThumbnailJob(saved.Id, saved.FilePath, ForceRegenerate: true));
+            _thumbnailBacklog.Enqueue(saved.Id, saved.FilePath, forceRegenerate: true);
         }
     }
 
@@ -305,45 +360,20 @@ public sealed class LibrarySyncService
         await Task.Run(() => _photos.UpdatePhotosBatch(batch), cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task ProcessThumbnailJobsAsync(List<ThumbnailJob> jobs, CancellationToken cancellationToken)
+    private int CountPhotosOnDisk(IReadOnlyList<string> roots, CancellationToken cancellationToken)
     {
-        if (jobs.Count == 0)
-            return;
-
-        var distinct = jobs.GroupBy(j => j.PhotoId).Select(g => g.Last()).ToList();
-        jobs.Clear();
-
-        for (var i = 0; i < distinct.Count; i += ThumbnailBatchSize)
+        var count = 0;
+        foreach (var root in roots)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var batch = distinct.Skip(i).Take(ThumbnailBatchSize).ToList();
-            var thumbUpdates = new List<ThumbnailPathUpdate>();
-
-            foreach (var job in batch)
+            foreach (var _ in _scanner.EnumeratePhotoPaths(root, cancellationToken))
             {
-                var paths = await _thumbnails.EnsureThumbnailsAsync(
-                    job.PhotoId,
-                    job.SourcePath,
-                    job.ForceRegenerate,
-                    cancellationToken).ConfigureAwait(false);
-
-                if (paths.SmallPath is null)
-                    continue;
-
-                thumbUpdates.Add(new ThumbnailPathUpdate
-                {
-                    PhotoId = job.PhotoId,
-                    SmallPath = paths.SmallPath,
-                    MediumPath = paths.MediumPath
-                });
-            }
-
-            if (thumbUpdates.Count > 0)
-            {
-                await Task.Run(() => _photos.UpdateThumbnailPathsBatch(thumbUpdates), cancellationToken)
-                    .ConfigureAwait(false);
+                count++;
+                if (count % 5000 == 0)
+                    cancellationToken.ThrowIfCancellationRequested();
             }
         }
+
+        return count;
     }
 
     private static bool NeedsUpdate(CatalogPhotoRecord record, string path)
@@ -395,13 +425,19 @@ public sealed class LibrarySyncService
         public int UpdatedFiles { get; set; }
         public int MissingFiles { get; set; }
 
-        public SyncSummary ToSummary() => new(NewFiles, UpdatedFiles, MissingFiles, ProcessedFiles);
+        public SyncSummary ToSummary(bool complete, int indexedCount, int diskCount) =>
+            new(NewFiles, UpdatedFiles, MissingFiles, ProcessedFiles, complete, indexedCount, diskCount);
     }
-
-    private readonly record struct ThumbnailJob(long PhotoId, string SourcePath, bool ForceRegenerate);
 }
 
-public sealed record SyncSummary(int NewFiles, int UpdatedFiles, int MissingFiles, int ProcessedFiles)
+public sealed record SyncSummary(
+    int NewFiles,
+    int UpdatedFiles,
+    int MissingFiles,
+    int ProcessedFiles,
+    bool IsComplete = true,
+    int IndexedCount = 0,
+    int DiskCount = 0)
 {
-    public static SyncSummary Skipped() => new(0, 0, 0, 0);
+    public static SyncSummary Skipped() => new(0, 0, 0, 0, false);
 }

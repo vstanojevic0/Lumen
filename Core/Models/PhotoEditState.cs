@@ -20,6 +20,7 @@ public partial class PhotoEditState : ObservableObject
     [ObservableProperty] private double _vibrance;
     [ObservableProperty] private double _saturation;
     [ObservableProperty] private double _straighten;
+    [ObservableProperty] private int _orientation;
 
     partial void OnExposureChanged(double value) => NotifyChanged();
     partial void OnContrastChanged(double value) => NotifyChanged();
@@ -30,6 +31,7 @@ public partial class PhotoEditState : ObservableObject
     partial void OnVibranceChanged(double value) => NotifyChanged();
     partial void OnSaturationChanged(double value) => NotifyChanged();
     partial void OnStraightenChanged(double value) => NotifyChanged();
+    partial void OnOrientationChanged(int value) => NotifyChanged();
 
     private void NotifyChanged()
     {
@@ -48,6 +50,7 @@ public partial class PhotoEditState : ObservableObject
         Vibrance = Vibrance,
         Saturation = Saturation,
         Straighten = Straighten,
+        Orientation = Orientation,
     };
 
     public void Reset()
@@ -64,6 +67,7 @@ public partial class PhotoEditState : ObservableObject
             Vibrance = 0;
             Saturation = 0;
             Straighten = 0;
+            Orientation = 0;
         }
         finally
         {
