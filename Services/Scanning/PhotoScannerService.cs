@@ -27,8 +27,16 @@ public sealed class PhotoScannerService
             foreach (var file in TryEnumerateFiles(directory))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (PhotoFileExtensions.IsPhotoFile(file))
-                    yield return Path.GetFullPath(file);
+                if (!PhotoFileExtensions.IsPhotoFile(file))
+                    continue;
+
+                if (!TryGetFileLength(file, out var length))
+                    continue;
+
+                if (!ScanPathExclusions.ShouldIncludePhotoFile(file, length))
+                    continue;
+
+                yield return Path.GetFullPath(file);
             }
 
             foreach (var subdir in TryEnumerateDirectories(directory))
@@ -36,6 +44,24 @@ public sealed class PhotoScannerService
                 if (!ScanPathExclusions.ShouldSkipDirectory(subdir))
                     pending.Push(subdir);
             }
+        }
+    }
+
+    private static bool TryGetFileLength(string file, out long length)
+    {
+        length = 0;
+        try
+        {
+            var info = new FileInfo(file);
+            if (!info.Exists)
+                return false;
+
+            length = info.Length;
+            return true;
+        }
+        catch (Exception ex) when (FileSystemPhotoScanner.IsBenignAccessFailure(ex))
+        {
+            return false;
         }
     }
 

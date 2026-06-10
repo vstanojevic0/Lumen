@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Lumen.Services.Database;
 using Lumen.Services.Imaging;
+using Lumen.Services.Scanning;
 
 namespace Lumen.Services.Metadata;
 
@@ -19,16 +20,26 @@ public sealed class MetadataExtractorService
             if (!info.Exists || info.Length == 0)
                 return null;
 
+            if (!ScanPathExclusions.ShouldIncludePhotoFile(absolutePath, info.Length))
+                return null;
+
             var dateCreated = new DateTimeOffset(info.CreationTimeUtc, TimeSpan.Zero);
             var dateModified = new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero);
             var dateTaken = dateModified;
+            var extension = Path.GetExtension(absolutePath);
             var dimensions = TryReadDimensions(absolutePath);
+
+            if (!ScanPathExclusions.ShouldIncludePhotoDimensions(
+                    extension,
+                    dimensions?.Width,
+                    dimensions?.Height))
+                return null;
 
             return new ExtractedPhotoMetadata
             {
                 FilePath = absolutePath,
                 FileName = info.Name,
-                Extension = Path.GetExtension(absolutePath),
+                Extension = extension,
                 FileSize = info.Length,
                 DateCreated = dateCreated,
                 DateModified = dateModified,

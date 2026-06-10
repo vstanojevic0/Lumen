@@ -149,6 +149,7 @@ public sealed class LibrarySyncService
         var newRecords = new List<NewPhotoRecord>();
         var updates = new List<PhotoUpdateRecord>();
         var thumbnailJobs = new List<ThumbnailJob>();
+        var excludedIds = new List<long>();
 
         foreach (var path in diskPaths)
         {
@@ -206,7 +207,11 @@ public sealed class LibrarySyncService
                 var extracted = await Task.Run(() => _metadata.TryExtract(path), cancellationToken)
                     .ConfigureAwait(false);
                 if (extracted is null)
+                {
+                    if (!record.IsMissing)
+                        excludedIds.Add(record.Id);
                     continue;
+                }
 
                 var reuseThumbs = !record.IsMissing &&
                                   !fullRescan &&
@@ -246,6 +251,12 @@ public sealed class LibrarySyncService
 
         if (updates.Count > 0)
             await FlushUpdatesAsync(updates, cancellationToken).ConfigureAwait(false);
+
+        if (excludedIds.Count > 0)
+        {
+            await Task.Run(() => _photos.MarkMissingBatch(excludedIds), cancellationToken).ConfigureAwait(false);
+            summary.MissingFiles += excludedIds.Count;
+        }
 
         var missingIds = existing.Values
             .Where(p => !p.IsMissing && !diskPaths.Contains(CatalogPathNormalizer.NormalizeFilePath(p.FilePath)))
