@@ -127,6 +127,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         PruneOverlappingScanRoots(loaded);
         MigrateFavoritesToDatabase(loaded);
 
+        await Task.Run(() => _catalogRepair.RepairCatalog()).ConfigureAwait(true);
+
         await LoadLibraryFromDatabaseAsync().ConfigureAwait(true);
         _ = RunBackgroundSyncAsync(fullRescan: false);
     }

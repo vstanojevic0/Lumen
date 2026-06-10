@@ -29,8 +29,10 @@ public sealed class MetadataExtractorService
             var extension = Path.GetExtension(absolutePath);
             var dimensions = TryReadDimensions(absolutePath);
 
-            if (!ScanPathExclusions.ShouldIncludePhotoDimensions(
+            if (!ScanPathExclusions.ShouldIncludeCatalogPhoto(
+                    absolutePath,
                     extension,
+                    info.Length,
                     dimensions?.Width,
                     dimensions?.Height))
                 return null;

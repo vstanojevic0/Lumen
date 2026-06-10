@@ -8,7 +8,7 @@ namespace Lumen.Services.Database;
 /// </summary>
 public sealed class CatalogRepairService
 {
-    public const int CurrentRepairVersion = 1;
+    public const int CurrentRepairVersion = 2;
 
     /// <summary>Indexed count must reach this fraction of files on disk before we consider the catalog complete.</summary>
     private const double MinimumCatalogCoverageRatio = 0.85;
@@ -35,7 +35,7 @@ public sealed class CatalogRepairService
         _database.EnsureInitialized();
         var roots = CatalogPathNormalizer.PruneNestedScanRoots(scanRoots);
         var plan = new CatalogSyncPlan();
-        var repair = RunStructuralRepair();
+        var repair = RepairCatalog();
         plan.RepairMadeChanges = repair.Changed;
 
         var dbCount = _photos.CountVisible();
@@ -82,7 +82,15 @@ public sealed class CatalogRepairService
     public CatalogRepairSummary RepairCatalog()
     {
         _database.EnsureInitialized();
-        return RunStructuralRepair();
+        var summary = new CatalogRepairSummary
+        {
+            FilteredAssetsRemoved = PurgeFilteredAssetsFromDatabase(),
+        };
+
+        var structural = RunStructuralRepair();
+        summary.PathsNormalized = structural.PathsNormalized;
+        summary.DuplicatesRemoved = structural.DuplicatesRemoved;
+        return summary;
     }
 
     private CatalogRepairSummary RunStructuralRepair()
@@ -229,6 +237,29 @@ public sealed class CatalogRepairService
         transaction.Commit();
         return removed;
     }
+
+    private int PurgeFilteredAssetsFromDatabase()
+    {
+        var toRemove = new List<long>();
+        foreach (var photo in _photos.GetAllVisible())
+        {
+            if (ScanPathExclusions.ShouldIncludeCatalogPhoto(
+                    photo.FilePath,
+                    photo.Extension ?? Path.GetExtension(photo.FilePath),
+                    photo.FileSize,
+                    photo.Width,
+                    photo.Height))
+                continue;
+
+            toRemove.Add(photo.Id);
+        }
+
+        if (toRemove.Count == 0)
+            return 0;
+
+        _photos.MarkMissingBatch(toRemove);
+        return toRemove.Count;
+    }
 }
 
 public sealed class CatalogSyncPlan
@@ -242,5 +273,6 @@ public sealed class CatalogRepairSummary
 {
     public int PathsNormalized { get; set; }
     public int DuplicatesRemoved { get; set; }
-    public bool Changed => PathsNormalized > 0 || DuplicatesRemoved > 0;
+    public int FilteredAssetsRemoved { get; set; }
+    public bool Changed => PathsNormalized > 0 || DuplicatesRemoved > 0 || FilteredAssetsRemoved > 0;
 }

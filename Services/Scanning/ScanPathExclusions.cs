@@ -23,20 +23,23 @@ public static class ScanPathExclusions
         "Microsoft", "Packages", "WinSxS", "Servicing", "WindowsApps", "SystemApps",
         "System32", "SysWOW64", "WinRE", "Boot", "servicing", "assembly", "Installer",
         "Prefetch", "SoftwareDistribution", "WUModels", "DigitalLocker", "GameBar",
-        "INetCache", "InetCache", "History", "Thumbnails", "IconCache", "WebCache",
-        "EBWebView", "GPUCache", "Code Cache", "Service Worker", "Extensions",
-        "ShellExperiences", "SystemResources", "ImmersiveControlPanel", "TileDataLayer",
-        "WinSAT", "Branding", "Cursors", "Help", "WinSxS", "Package Cache", "PackageCache",
-        "LocalLow", "Local Settings", "Temporary Internet Files",
+        "INetCache", "InetCache", "History", "Thumbnails", "Thumbnail", "THUMBNAIL",
+        "IconCache", "WebCache", "EBWebView", "GPUCache", "Code Cache", "Service Worker",
+        "Extensions", "ShellExperiences", "SystemResources", "ImmersiveControlPanel",
+        "TileDataLayer", "WinSAT", "Branding", "Cursors", "Help", "Package Cache",
+        "PackageCache", "LocalLow", "Local Settings", "Temporary Internet Files",
+        "DriverStore", "DriverStoreFileRepository", "FileRepository", "ASSET", "Asset",
+        "Assets", "MediaAssets", "DeviceAssets", "ProductAssets", "CatalogAssets",
+        "LGHUB", "lghub", "Logi", "Logitech", "LogiOptions", "LogiOptionsPlus",
 
         // Dev / package managers
-        "node_modules", "bower_components", "vendor", "packages", "PackageCache",
+        "node_modules", "bower_components", "vendor", "packages",
         "bin", "obj", "build", "dist", "out", "target", "gradle", ".gradle",
 
         // Game / engine asset trees
         "Steam", "steamapps", "Epic Games", "GOG Galaxy", "Unity", "UnrealEngine",
         "Unreal Engine", "Blender", "Godot", "RPG Maker", "World of Warcraft",
-        "Assets", "AssetBundles", "StreamingAssets", "Resources", "Art", "Artwork",
+        "AssetBundles", "StreamingAssets", "Resources", "Art", "Artwork",
         "Textures", "textures", "Sprites", "sprites", "Icons", "icons", "UI", "ui",
         "Materials", "materials", "Models", "models", "Prefabs", "Shaders", "shaders",
         "Audio", "audio", "Sounds", "sound", "Fonts", "font", "Skins", "skins",
@@ -45,6 +48,9 @@ public static class ScanPathExclusions
 
     private static readonly string[] SkippedPathFragments =
     [
+        "$WINDOWS.~BT",
+        "$WINDOWS.~WS",
+        "$WinREAgent",
         $"{Path.DirectorySeparatorChar}.app{Path.DirectorySeparatorChar}",
         $"{Path.AltDirectorySeparatorChar}.app{Path.AltDirectorySeparatorChar}",
         $"{Path.DirectorySeparatorChar}Applications{Path.DirectorySeparatorChar}",
@@ -66,7 +72,19 @@ public static class ScanPathExclusions
         $"{Path.DirectorySeparatorChar}PackageCache{Path.DirectorySeparatorChar}",
         $"{Path.DirectorySeparatorChar}INetCache{Path.DirectorySeparatorChar}",
         $"{Path.DirectorySeparatorChar}Thumbnails{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}Thumbnail{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}THUMBNAIL{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}ASSET{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}Assets{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}DriverStore{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}DriverStoreFileRepository{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}FileRepository{Path.DirectorySeparatorChar}",
         $"{Path.DirectorySeparatorChar}IconCache{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}LGHUB{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}lghub{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}LogiOptions{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}LogiOptionsPlus{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}Logitech{Path.DirectorySeparatorChar}",
         $"{Path.DirectorySeparatorChar}Microsoft{Path.DirectorySeparatorChar}Windows{Path.DirectorySeparatorChar}",
         $"{Path.DirectorySeparatorChar}Microsoft{Path.DirectorySeparatorChar}Edge{Path.DirectorySeparatorChar}",
         $"{Path.DirectorySeparatorChar}Google{Path.DirectorySeparatorChar}Chrome{Path.DirectorySeparatorChar}",
@@ -75,6 +93,8 @@ public static class ScanPathExclusions
         $"{Path.DirectorySeparatorChar}Library{Path.DirectorySeparatorChar}Caches{Path.DirectorySeparatorChar}",
         $"{Path.DirectorySeparatorChar}Library{Path.DirectorySeparatorChar}Intents{Path.DirectorySeparatorChar}",
         $"{Path.DirectorySeparatorChar}node_modules{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}Sources{Path.DirectorySeparatorChar}Diagnostics{Path.DirectorySeparatorChar}",
+        $"{Path.DirectorySeparatorChar}Sources{Path.DirectorySeparatorChar}Replacement{Path.DirectorySeparatorChar}",
     ];
 
     private static readonly HashSet<string> RawExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -89,11 +109,17 @@ public static class ScanPathExclusions
 
         absolutePath = Path.TrimEndingDirectorySeparator(absolutePath);
 
+        if (IsWindowsSystemVolumePath(absolutePath))
+            return true;
+
         if (ContainsSkippedFragment(absolutePath))
             return true;
 
         foreach (var segment in GetPathSegments(absolutePath))
         {
+            if (IsWindowsSystemSegment(segment))
+                return true;
+
             if (SkippedDirectoryNames.Contains(segment))
                 return true;
 
@@ -110,9 +136,31 @@ public static class ScanPathExclusions
         return false;
     }
 
+    public static bool ShouldIncludeCatalogPhoto(
+        string absolutePath,
+        string extension,
+        long fileSizeBytes,
+        int? width,
+        int? height)
+    {
+        if (!ShouldIncludePhotoFile(absolutePath, fileSizeBytes))
+            return false;
+
+        if (!ShouldIncludePhotoDimensions(extension, width, height))
+            return false;
+
+        if (LooksLikeUiProductAsset(absolutePath, extension, width, height))
+            return false;
+
+        return true;
+    }
+
     public static bool ShouldIncludePhotoFile(string absolutePath, long fileSizeBytes)
     {
         if (string.IsNullOrWhiteSpace(absolutePath))
+            return false;
+
+        if (IsWindowsSystemVolumePath(absolutePath))
             return false;
 
         var directory = Path.GetDirectoryName(absolutePath);
@@ -130,6 +178,9 @@ public static class ScanPathExclusions
             return false;
 
         var ext = Path.GetExtension(absolutePath);
+        if (IsWindowsAssetPath(absolutePath) && IsRasterAssetExtension(ext))
+            return false;
+
         return MeetsMinimumSize(ext, fileSizeBytes);
     }
 
@@ -147,13 +198,61 @@ public static class ScanPathExclusions
         return extension.ToLowerInvariant() switch
         {
             ".jpg" or ".jpeg" or ".heic" or ".heif" or ".avif" =>
-                longestEdge >= 320 && shortestEdge >= 200,
+                longestEdge >= 480 && shortestEdge >= 320,
             ".png" or ".gif" or ".webp" or ".bmp" =>
-                longestEdge >= 400 && shortestEdge >= 280,
+                longestEdge >= 640 && shortestEdge >= 480,
             ".tif" or ".tiff" =>
-                longestEdge >= 480,
-            _ => longestEdge >= 320,
+                longestEdge >= 800,
+            _ => longestEdge >= 480,
         };
+    }
+
+    private static bool IsWindowsSystemVolumePath(string path) =>
+        path.Contains("$WINDOWS.~BT", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("$WINDOWS.~WS", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("$WinREAgent", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsWindowsSystemSegment(string segment) =>
+        segment.StartsWith('$') ||
+        segment.StartsWith("Windows10Upgrade", StringComparison.OrdinalIgnoreCase) ||
+        segment.StartsWith("Windows11Upgrade", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsWindowsAssetPath(string path) =>
+        IsWindowsSystemVolumePath(path) ||
+        path.Contains("\\ASSET\\", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("\\Assets\\", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("\\THUMBNAIL\\", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("\\Thumbnail\\", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("\\DriverStore\\", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("\\LGHUB\\", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("\\lghub\\", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("\\LogiOptions", StringComparison.OrdinalIgnoreCase) ||
+        path.Contains("\\Logitech\\", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsRasterAssetExtension(string extension) =>
+        extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+        extension.Equals(".webp", StringComparison.OrdinalIgnoreCase) ||
+        extension.Equals(".gif", StringComparison.OrdinalIgnoreCase) ||
+        extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase);
+
+    private static bool LooksLikeUiProductAsset(string path, string extension, int? width, int? height)
+    {
+        if (!IsRasterAssetExtension(extension) || width is null or <= 0 || height is null or <= 0)
+            return false;
+
+        if (IsWindowsAssetPath(path))
+            return true;
+
+        var longest = Math.Max(width.Value, height.Value);
+        var shortest = Math.Min(width.Value, height.Value);
+        var squareish = shortest / (double)longest >= 0.82;
+
+        if (!squareish || longest > 1400)
+            return false;
+
+        return path.Contains("\\Program Files\\", StringComparison.OrdinalIgnoreCase) ||
+               path.Contains("\\Program Files (x86)\\", StringComparison.OrdinalIgnoreCase) ||
+               path.Contains("\\Windows\\", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool LooksLikeAssetFileName(string fileName)
@@ -172,7 +271,9 @@ public static class ScanPathExclusions
             stem.StartsWith("splash", StringComparison.Ordinal) ||
             stem.StartsWith("placeholder", StringComparison.Ordinal) ||
             stem.StartsWith("appx", StringComparison.Ordinal) ||
-            stem.StartsWith("msix", StringComparison.Ordinal))
+            stem.StartsWith("msix", StringComparison.Ordinal) ||
+            stem.StartsWith("device_", StringComparison.Ordinal) ||
+            stem.StartsWith("product_", StringComparison.Ordinal))
             return true;
 
         if (lower.Contains("favicon") ||
@@ -184,7 +285,16 @@ public static class ScanPathExclusions
             lower.Contains("wide310x150") ||
             lower.Contains("splashscreen") ||
             lower.Contains("windows.ui") ||
-            lower.Contains("microsoft.windows"))
+            lower.Contains("microsoft.windows") ||
+            lower.Contains("report_rate") ||
+            lower.Contains("battery") ||
+            lower.Contains("bluetooth") ||
+            lower.Contains("wifi") ||
+            lower.Contains("notification") ||
+            lower.Contains("volume_") ||
+            lower.Contains("brightness") ||
+            lower.Contains("airplane") ||
+            lower.Contains("hotspot"))
             return true;
 
         if (stem.EndsWith("_16", StringComparison.Ordinal) ||
@@ -205,10 +315,10 @@ public static class ScanPathExclusions
 
         return extension.ToLowerInvariant() switch
         {
-            ".png" or ".gif" or ".webp" or ".bmp" => bytes >= 40_000,
-            ".jpg" or ".jpeg" or ".heic" or ".heif" or ".avif" => bytes >= 20_000,
-            ".tif" or ".tiff" => bytes >= 80_000,
-            _ => bytes >= 120_000,
+            ".png" or ".gif" or ".webp" or ".bmp" => bytes >= 80_000,
+            ".jpg" or ".jpeg" or ".heic" or ".heif" or ".avif" => bytes >= 40_000,
+            ".tif" or ".tiff" => bytes >= 120_000,
+            _ => bytes >= 150_000,
         };
     }
 
