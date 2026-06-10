@@ -112,13 +112,18 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
 
         _initialized = true;
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            EnsureMacStartupLibrary();
-
         var loaded = _store.Load();
         if (loaded.ScanRoots.Count == 0)
             ApplyFallbackRootsFromCatalog();
 
+        loaded = _store.Load();
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            EnsureMacStartupLibrary();
+        else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            EnsureWindowsStartupLibrary();
+
+        loaded = _store.Load();
         PruneOverlappingScanRoots(loaded);
         MigrateFavoritesToDatabase(loaded);
 
@@ -508,6 +513,39 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         var settings = _store.Load();
         settings.FirstRunCompleted = true;
         settings.ScanRoots = roots;
+        _store.Save(settings);
+    }
+
+    private void EnsureWindowsStartupLibrary()
+    {
+        var settings = _store.Load();
+        if (!settings.ScanEntireComputer)
+            return;
+
+        var autoRoots = LibraryLocationCatalog.GetWindowsAutoLoadRoots()
+            .Select(c => CatalogPathNormalizer.NormalizeFolderPath(c.AbsolutePath))
+            .Where(Directory.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (autoRoots.Count == 0)
+            return;
+
+        var merged = settings.ScanRoots
+            .Select(CatalogPathNormalizer.NormalizeFolderPath)
+            .Concat(autoRoots)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        merged = CatalogPathNormalizer.PruneNestedScanRoots(merged);
+
+        if (merged.ToHashSet(StringComparer.OrdinalIgnoreCase)
+                .SetEquals(settings.ScanRoots.Select(CatalogPathNormalizer.NormalizeFolderPath)))
+            return;
+
+        settings.ScanRoots = merged;
+        settings.FirstRunCompleted = true;
+        settings.ScanEntireComputer = true;
         _store.Save(settings);
     }
 

@@ -28,11 +28,13 @@ export function usePhotoNavigation({
   selectedId,
   onSelect,
   enabled = true,
+  allowWheel = false,
 }: {
   photos: PhotoItem[];
   selectedId: string;
   onSelect: (id: string) => void;
   enabled?: boolean;
+  allowWheel?: boolean;
 }) {
   const goToPrevious = useCallback(() => {
     if (!enabled || !selectedId) return false;
@@ -97,12 +99,44 @@ export function usePhotoNavigation({
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("mousedown", onMouseDown);
     window.addEventListener("auxclick", onAuxClick);
+
+    const onWheel = (event: WheelEvent) => {
+      if (!allowWheel) return;
+      if (isInteractiveTarget(event.target)) return;
+
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        const scrollHost = target.closest("[data-photo-scroll-container]");
+        if (scrollHost instanceof HTMLElement && scrollHost.scrollHeight > scrollHost.clientHeight + 1) {
+          const atTop = scrollHost.scrollTop <= 0;
+          const atBottom =
+            scrollHost.scrollTop + scrollHost.clientHeight >= scrollHost.scrollHeight - 1;
+          const scrollingDown = event.deltaY > 0;
+          const scrollingUp = event.deltaY < 0;
+          if ((scrollingDown && !atBottom) || (scrollingUp && !atTop)) return;
+        }
+      }
+
+      const delta =
+        Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+      if (Math.abs(delta) < 18) return;
+
+      event.preventDefault();
+      if (delta > 0) goToNext();
+      else goToPrevious();
+    };
+
+    if (allowWheel) {
+      window.addEventListener("wheel", onWheel, { passive: false });
+    }
+
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("mousedown", onMouseDown);
       window.removeEventListener("auxclick", onAuxClick);
+      if (allowWheel) window.removeEventListener("wheel", onWheel);
     };
-  }, [enabled, goToPrevious, goToNext]);
+  }, [enabled, allowWheel, goToPrevious, goToNext]);
 
   return { goToPrevious, goToNext };
 }

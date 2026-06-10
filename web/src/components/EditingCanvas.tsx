@@ -66,7 +66,10 @@ export function EditingCanvas({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-transparent">
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-9 py-7">
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-9 py-7"
+          data-photo-viewer
+        >
           <div
             className="flex max-h-full max-w-full items-center justify-center transition-transform duration-150 ease-out"
             style={{

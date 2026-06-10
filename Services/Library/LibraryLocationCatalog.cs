@@ -13,30 +13,36 @@ public static class LibraryLocationCatalog
     public static IReadOnlyList<ScanCandidate> GetSuggestedScanCandidates()
     {
         if (OperatingSystem.IsWindows())
-        {
-            var list = new List<ScanCandidate>();
-            foreach (var drive in DriveInfo.GetDrives())
-            {
-                try
-                {
-                    if (drive.DriveType != DriveType.Fixed || !drive.IsReady)
-                        continue;
-
-                    var root = Path.TrimEndingDirectorySeparator(drive.RootDirectory.FullName);
-                    var label = string.IsNullOrWhiteSpace(drive.VolumeLabel)
-                        ? $"Drive {drive.Name.TrimEnd('\\', '/')}"
-                        : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\', '/')})";
-                    list.Add(new ScanCandidate(root, label));
-                }
-                catch (UnauthorizedAccessException)
-                {
-                }
-            }
-
-            return list.OrderBy(c => c.AbsolutePath, StringComparer.OrdinalIgnoreCase).ToList();
-        }
+            return GetWindowsAutoLoadRoots();
 
         return GetMacOsCandidates();
+    }
+
+    /// <summary>
+    /// All fixed drive roots on Windows (C:\, D:\, …) for full-computer photo indexing.
+    /// </summary>
+    public static IReadOnlyList<ScanCandidate> GetWindowsAutoLoadRoots()
+    {
+        var list = new List<ScanCandidate>();
+        foreach (var drive in DriveInfo.GetDrives())
+        {
+            try
+            {
+                if (drive.DriveType != DriveType.Fixed || !drive.IsReady)
+                    continue;
+
+                var root = Path.TrimEndingDirectorySeparator(drive.RootDirectory.FullName);
+                var label = string.IsNullOrWhiteSpace(drive.VolumeLabel)
+                    ? $"Drive {drive.Name.TrimEnd('\\', '/')}"
+                    : $"{drive.VolumeLabel} ({drive.Name.TrimEnd('\\', '/')})";
+                list.Add(new ScanCandidate(root, label));
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        return list.OrderBy(c => c.AbsolutePath, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private static IReadOnlyList<ScanCandidate> GetMacOsCandidates() => GetMacOsAutoLoadRoots();

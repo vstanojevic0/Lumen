@@ -81,6 +81,7 @@ export default function App() {
     selectedId,
     onSelect: handleSelectPhoto,
     enabled: navigationPhotos.length > 1 && Boolean(selectedId),
+    allowWheel: mode === "edit",
   });
 
   const applyPreset = useCallback(
@@ -510,7 +511,7 @@ function LibraryGrid({
   const tileMin = Math.round(96 + zoom * 0.6);
 
   return (
-    <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto px-7 py-5 scroll-smooth">
+    <div ref={scrollRef} className="min-w-0 flex-1 overflow-y-auto px-7 py-5 scroll-smooth" data-photo-scroll-container>
       {sections.map((section, index) => (
         <section
           key={section.folderPath}

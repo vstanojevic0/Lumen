@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { PhotoItem } from "../types";
 import { HostPhotoImage } from "./HostPhotoImage";
 
@@ -8,9 +9,25 @@ interface FilmstripProps {
 }
 
 export function Filmstrip({ photos, selectedId, onSelect }: FilmstripProps) {
+  const stripRef = useRef<HTMLDivElement>(null);
+
   return (
     <div className="mx-8 mb-6 rounded-2xl border border-white/10 bg-[#132235]/72 p-2 shadow-xl shadow-black/25 backdrop-blur">
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div
+        ref={stripRef}
+        className="flex gap-2 overflow-x-auto pb-1 scroll-smooth"
+        data-photo-scroll-container
+        onWheel={(event) => {
+          if (!stripRef.current) return;
+          const delta =
+            Math.abs(event.deltaX) >= Math.abs(event.deltaY)
+              ? event.deltaX
+              : event.deltaY;
+          if (Math.abs(delta) < 1) return;
+          event.preventDefault();
+          stripRef.current.scrollLeft += delta;
+        }}
+      >
         {photos.map((photo) => {
           const selected = photo.id === selectedId;
           return (

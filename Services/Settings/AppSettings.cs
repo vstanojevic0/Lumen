@@ -4,6 +4,9 @@ public sealed class AppSettings
 {
     public bool FirstRunCompleted { get; set; }
 
+    /// <summary>When true on Windows, all fixed drives (C:\, D:\, …) are indexed automatically.</summary>
+    public bool ScanEntireComputer { get; set; } = true;
+
     /// <summary>Absolute paths to scan (e.g. Windows drive roots like C:\, D:\).</summary>
     public List<string> ScanRoots { get; set; } = new();
 
