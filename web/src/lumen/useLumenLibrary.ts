@@ -138,8 +138,6 @@ export function useLumenLibrary() {
         applyMediaBase(nextStatus.mediaBaseUrl);
         setStatus(nextStatus);
 
-        if (nextStatus.isBusy) return;
-
         const [nextFolders, nextGallery] = await Promise.all([
           lumenCall<WebFolderDto[]>("getFolders"),
           lumenCall<WebGallerySnapshot>("getGallery", galleryQueryRef.current),
@@ -232,10 +230,36 @@ export function useLumenLibrary() {
     setLibraryJumpTarget(null);
   }, []);
 
+  const galleryReady = gallery !== null;
+  const isBusy = status?.isBusy ?? gallery?.isBusy ?? false;
+  const isLibraryPending = useMemo(() => {
+    if (!host || !galleryReady) return true;
+    if (loading) return true;
+    if (isBusy) return mapped.photos.length === 0;
+
+    if (view === "all") {
+      const indexed = status?.totalCount ?? gallery?.totalCount ?? 0;
+      if (indexed > 0 && mapped.photos.length === 0) return true;
+    }
+
+    return false;
+  }, [
+    host,
+    galleryReady,
+    loading,
+    isBusy,
+    view,
+    status?.totalCount,
+    gallery?.totalCount,
+    mapped.photos.length,
+  ]);
+
   return {
     host,
     hostChecked,
     loading,
+    galleryReady,
+    isLibraryPending,
     status,
     folders,
     view,
@@ -244,7 +268,7 @@ export function useLumenLibrary() {
     totalCount: status?.totalCount ?? gallery?.totalCount ?? mapped.photos.length,
     favoriteCount: status?.favoriteCount ?? 0,
     statusText: gallery?.statusText ?? status?.statusText ?? "",
-    isBusy: status?.isBusy ?? gallery?.isBusy ?? false,
+    isBusy,
     photos: mapped.photos,
     sections: mapped.sections,
     selectAllPhotos,

@@ -152,17 +152,15 @@ export default function App() {
     return <DesktopOnlySplash readyChecked={library.hostChecked} />;
   }
 
-  if (library.loading && photos.length === 0) {
+  if (library.isLibraryPending) {
     return (
       <AppShell sidebar={sidebar}>
-        <div className="flex flex-1 items-center justify-center text-sm text-white/52">
-          {library.statusText || "Loading library..."}
-        </div>
+        <LibraryLoadingState statusText={library.statusText} />
       </AppShell>
     );
   }
 
-  if (!library.loading && photos.length === 0) {
+  if (photos.length === 0) {
     return (
       <AppShell sidebar={sidebar}>
         <EmptyLibraryState
@@ -294,6 +292,20 @@ function DesktopOnlySplash({ readyChecked }: { readyChecked: boolean }) {
             ? "This interface runs inside the Lumen desktop app."
             : "Starting the desktop photo workspace..."}
         </p>
+      </div>
+    </div>
+  );
+}
+
+function LibraryLoadingState({ statusText }: { statusText?: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 text-center">
+      <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/12 border-t-[#2f8cff]" />
+      <div>
+        <p className="text-sm font-medium text-white/72">
+          {statusText || "Loading library…"}
+        </p>
+        <p className="mt-1 text-xs text-white/38">This may take a moment on first launch.</p>
       </div>
     </div>
   );
