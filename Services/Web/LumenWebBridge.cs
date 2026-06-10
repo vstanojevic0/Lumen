@@ -145,6 +145,8 @@ public sealed class LumenWebBridge
             "getThumbnail" => ImageUrlResponse(parameters, preview: false),
             "getPreview" => ImageUrlResponse(parameters, preview: true),
             "setFavorite" => SetFavorite(vm, parameters),
+            "getPhotoDetails" => GetPhotoDetails(vm, parameters),
+            "revealInFileManager" => RevealInFileManager(vm, parameters),
             "rescan" => await RescanAsync(vm).ConfigureAwait(true),
             "addFolder" => await AddFolderAsync(vm).ConfigureAwait(true),
             _ => throw new NotSupportedException($"Unknown method: {method}")
@@ -185,6 +187,37 @@ public sealed class LumenWebBridge
                             favProp.ValueKind is JsonValueKind.True;
 
         return (folderPath, favoritesOnly);
+    }
+
+    private static object RevealInFileManager(LibraryViewModel vm, JsonElement? parameters)
+    {
+        if (parameters is not JsonElement el ||
+            !el.TryGetProperty("path", out var pathProp))
+        {
+            throw new ArgumentException("path is required");
+        }
+
+        var path = pathProp.GetString();
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("path is required");
+
+        vm.RevealPhotoInFileManager(path);
+        return new { ok = true };
+    }
+
+    private static object? GetPhotoDetails(LibraryViewModel vm, JsonElement? parameters)
+    {
+        if (parameters is not JsonElement el ||
+            !el.TryGetProperty("path", out var pathProp))
+        {
+            throw new ArgumentException("path is required");
+        }
+
+        var path = pathProp.GetString();
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("path is required");
+
+        return vm.GetPhotoDetails(path);
     }
 
     private static object SetFavorite(LibraryViewModel vm, JsonElement? parameters)

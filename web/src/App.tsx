@@ -1,22 +1,17 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import { EditingCanvas } from "./components/EditingCanvas";
-import { RightEditPanel } from "./components/RightEditPanel";
+import { PhotoContextMenu, type PhotoContextMenuState } from "./components/PhotoContextMenu";
+import { RightEditPanel, type InspectorTab } from "./components/RightEditPanel";
 import { Sidebar } from "./components/Sidebar";
 import { TopToolbar } from "./components/TopToolbar";
 import { VirtualLibraryGrid } from "./components/VirtualLibraryGrid";
 import { useEditHistory } from "./hooks/useEditHistory";
 import { useEditNavigation } from "./hooks/useEditNavigation";
+import { useCtrlWheelZoom } from "./hooks/useCtrlWheelZoom";
 import { usePhotoNavigation } from "./hooks/usePhotoNavigation";
 import { filmstripWindow } from "./lumen/mediaUrls";
 import { useLumenLibrary } from "./lumen/useLumenLibrary";
 import { presets, type PresetId } from "./lib/presets";
-import { rotateOrientation } from "./lib/rotation";
 import { defaultEditValues, type AppMode, type PhotoItem } from "./types";
 
 export default function App() {
@@ -26,7 +21,9 @@ export default function App() {
   const [sections, setSections] = useState(library.sections);
   const [selectedId, setSelectedId] = useState("");
   const [zoom, setZoom] = useState(100);
-  const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("edit");
+  const [photoContextMenu, setPhotoContextMenu] = useState<PhotoContextMenuState | null>(null);
   useEffect(() => {
     setPhotos(library.photos);
     setSections(library.sections);
@@ -47,7 +44,7 @@ export default function App() {
     canRedo,
   } = useEditHistory();
 
-  const { enterEdit, backToLibrary, handleModeChange } = useEditNavigation(
+  const { enterEdit, backToLibrary } = useEditNavigation(
     mode,
     setMode,
   );
@@ -78,6 +75,8 @@ export default function App() {
     allowWheel: mode === "edit",
   });
 
+  useCtrlWheelZoom(setZoom);
+
   const applyPreset = useCallback(
     (id: PresetId) => {
       const base = defaultEditValues();
@@ -86,25 +85,6 @@ export default function App() {
     },
     [replace],
   );
-
-  const handleCopyEdits = useCallback(() => {
-    void navigator.clipboard.writeText(JSON.stringify(edits, null, 2));
-    setShowCopiedToast(true);
-  }, [edits]);
-
-  const handleRotateLeft = useCallback(() => {
-    update("orientation", rotateOrientation(edits.orientation, -90));
-  }, [edits.orientation, update]);
-
-  const handleRotateRight = useCallback(() => {
-    update("orientation", rotateOrientation(edits.orientation, 90));
-  }, [edits.orientation, update]);
-
-  useEffect(() => {
-    if (!showCopiedToast) return;
-    const t = window.setTimeout(() => setShowCopiedToast(false), 2200);
-    return () => window.clearTimeout(t);
-  }, [showCopiedToast]);
 
   const handleExport = useCallback(() => {
     if (!photo) return;
@@ -129,6 +109,30 @@ export default function App() {
       void library.setFavorite(photo.path, next);
     }
   }, [photo, library, updatePhoto]);
+
+  const openPhotoContextMenu = useCallback((photoId: string, event: MouseEvent) => {
+    setPhotoContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      photoId,
+    });
+  }, []);
+
+  const handleShowInFolder = useCallback(
+    (photoId: string) => {
+      setSelectedId(photoId);
+      library.showPhotoInFolder(photoId);
+      if (mode === "edit") backToLibrary();
+    },
+    [library, mode, backToLibrary],
+  );
+
+  const handleRevealInFileManager = useCallback(
+    (photoId: string) => {
+      void library.revealPhotoInFileManager(photoId);
+    },
+    [library],
+  );
 
   const sidebar = (
     <Sidebar
@@ -188,7 +192,11 @@ export default function App() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <TopToolbar
           mode={mode}
-          onModeChange={handleModeChange}
+          photoTitle={photo.title}
+          favorite={photo.favorite}
+          onToggleFavorite={mode === "edit" ? handleToggleFavorite : undefined}
+          inspectorOpen={inspectorOpen}
+          onToggleInspector={mode === "edit" ? () => setInspectorOpen((v) => !v) : undefined}
           zoom={zoom}
           onZoomChange={setZoom}
           canUndo={canUndo}
@@ -201,29 +209,29 @@ export default function App() {
         />
 
         {mode === "edit" ? (
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+          <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
             <EditingCanvas
               photo={photo}
               filmstripPhotos={filmstripPhotos}
               edits={edits}
               zoom={zoom}
               onSelectPhoto={handleSelectPhoto}
-              onToggleFavorite={handleToggleFavorite}
-              onToggleFlag={() => updatePhoto({ flagged: !photo.flagged })}
-              onCopyEdits={handleCopyEdits}
-              onRotateLeft={handleRotateLeft}
-              onRotateRight={handleRotateRight}
+              onPhotoContextMenu={openPhotoContextMenu}
             />
-            <RightEditPanel
-              photo={photo}
-              edits={edits}
-              activePreset={activePreset as PresetId | null}
-              onChange={update}
-              onApplyPreset={applyPreset}
-              onReset={reset}
-              onCopyEdits={handleCopyEdits}
-              onExport={handleExport}
-            />
+            {inspectorOpen ? (
+              <RightEditPanel
+                photo={photo}
+                edits={edits}
+                activePreset={activePreset as PresetId | null}
+                tab={inspectorTab}
+                onTabChange={setInspectorTab}
+                onClose={() => setInspectorOpen(false)}
+                onChange={update}
+                onApplyPreset={applyPreset}
+                onReset={reset}
+                onExport={handleExport}
+              />
+            ) : null}
           </div>
         ) : null}
 
@@ -236,9 +244,10 @@ export default function App() {
             selectedId={selectedId}
             zoom={zoom}
             libraryVisible={mode === "library"}
-            folderJumpTarget={library.folderJumpTarget}
+            libraryJumpTarget={library.libraryJumpTarget}
             onActiveFolderChange={library.setActiveFolderPath}
-            onJumpComplete={library.clearFolderJumpTarget}
+            onJumpComplete={library.clearLibraryJumpTarget}
+            onPhotoContextMenu={openPhotoContextMenu}
             onSelect={(id) => {
               handleSelectPhoto(id);
               enterEdit();
@@ -248,11 +257,13 @@ export default function App() {
         </div>
       </div>
 
-      {showCopiedToast ? (
-        <div className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[#2f8cff]/40 bg-[#152131]/95 px-4 py-2 text-xs text-[#b8d8ff] shadow-xl backdrop-blur">
-          Edit settings copied to clipboard
-        </div>
-      ) : null}
+      <PhotoContextMenu
+        menu={photoContextMenu}
+        host={library.host}
+        onClose={() => setPhotoContextMenu(null)}
+        onShowInFolder={handleShowInFolder}
+        onRevealInFileManager={handleRevealInFileManager}
+      />
     </AppShell>
   );
 }

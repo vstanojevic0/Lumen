@@ -2,6 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PhotoItem } from "../types";
 import { applyMediaBase } from "./mediaUrls";
 import {
+  findSectionPathForPhotoId,
+  folderPathFromPhotoPath,
+} from "./folderScroll";
+import {
   isLumenHost,
   lumenCall,
   onLumenEvent,
@@ -44,6 +48,11 @@ function mapSnapshot(snapshot: WebGallerySnapshot): {
   return { photos, sections };
 }
 
+export type LibraryJumpTarget = {
+  folderPath: string;
+  photoId?: string;
+};
+
 export function useLumenLibrary() {
   const [host, setHost] = useState(() => isLumenHost());
   const [hostChecked, setHostChecked] = useState(() => isLumenHost());
@@ -53,7 +62,7 @@ export function useLumenLibrary() {
   const [loading, setLoading] = useState(host);
   const [view, setView] = useState<LibraryView>("all");
   const [activeFolderPath, setActiveFolderPath] = useState<string | null>(null);
-  const [folderJumpTarget, setFolderJumpTarget] = useState<string | null>(null);
+  const [libraryJumpTarget, setLibraryJumpTarget] = useState<LibraryJumpTarget | null>(null);
 
   const galleryQuery = useMemo<GalleryQuery>(
     () => ({
@@ -152,24 +161,49 @@ export function useLumenLibrary() {
 
   const selectAllPhotos = useCallback(() => {
     setView("all");
-    setFolderJumpTarget("__top__");
+    setActiveFolderPath(null);
+    setLibraryJumpTarget(null);
   }, []);
 
   const selectFavorites = useCallback(() => {
     setView("favorites");
     setActiveFolderPath(null);
-    setFolderJumpTarget(null);
+    setLibraryJumpTarget(null);
   }, []);
 
   const jumpToFolder = useCallback((path: string) => {
     setView("all");
     setActiveFolderPath(path);
-    setFolderJumpTarget(path);
+    setLibraryJumpTarget({ folderPath: path });
   }, []);
 
-  const clearFolderJumpTarget = useCallback(() => {
-    setFolderJumpTarget(null);
-  }, []);
+  const mapped = useMemo(() => {
+    if (gallery) return mapSnapshot(gallery);
+    return {
+      photos: [],
+      sections: [],
+    };
+  }, [gallery]);
+
+  const showPhotoInFolder = useCallback(
+    (photoId: string) => {
+      setView("all");
+      const folderPath =
+        findSectionPathForPhotoId(mapped.sections, photoId) ??
+        folderPathFromPhotoPath(photoId);
+      setActiveFolderPath(folderPath);
+      setLibraryJumpTarget({ folderPath, photoId });
+    },
+    [mapped.sections],
+  );
+
+  const revealPhotoInFileManager = useCallback(
+    async (photoId: string) => {
+      if (!host) return;
+      await lumenCall("revealInFileManager", { path: photoId });
+    },
+    [host],
+  );
 
   const setFavorite = useCallback(
     async (path: string, favorite: boolean) => {
@@ -194,13 +228,9 @@ export function useLumenLibrary() {
     [host, view, loadGallery],
   );
 
-  const mapped = useMemo(() => {
-    if (gallery) return mapSnapshot(gallery);
-    return {
-      photos: [],
-      sections: [],
-    };
-  }, [gallery]);
+  const clearLibraryJumpTarget = useCallback(() => {
+    setLibraryJumpTarget(null);
+  }, []);
 
   return {
     host,
@@ -210,7 +240,7 @@ export function useLumenLibrary() {
     folders,
     view,
     activeFolderPath,
-    folderJumpTarget,
+    libraryJumpTarget,
     totalCount: status?.totalCount ?? gallery?.totalCount ?? mapped.photos.length,
     favoriteCount: status?.favoriteCount ?? 0,
     statusText: gallery?.statusText ?? status?.statusText ?? "",
@@ -220,8 +250,10 @@ export function useLumenLibrary() {
     selectAllPhotos,
     selectFavorites,
     jumpToFolder,
+    showPhotoInFolder,
+    revealPhotoInFileManager,
     setActiveFolderPath,
-    clearFolderJumpTarget,
+    clearLibraryJumpTarget,
     setFavorite,
     refresh,
     rescan: () => lumenCall("rescan"),

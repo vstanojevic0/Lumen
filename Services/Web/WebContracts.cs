@@ -29,3 +29,18 @@ public sealed record WebFolderDto(
 public sealed record WebGalleryRequest(string? FolderPath, bool FavoritesOnly);
 
 public sealed record WebImageDto(string Url);
+
+public sealed record WebPhotoDetailsDto(
+    string FileName,
+    string FilePath,
+    string FolderPath,
+    long FileSizeBytes,
+    string FileSizeLabel,
+    int? Width,
+    int? Height,
+    string? Extension,
+    string? CameraModel,
+    string? DateCreated,
+    string? DateModified,
+    string? DateTaken,
+    bool Favorite);

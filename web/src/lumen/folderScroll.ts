@@ -101,3 +101,10 @@ export function findSectionPathForPhotoId(
   }
   return null;
 }
+
+export function folderPathFromPhotoPath(filePath: string): string {
+  const normalized = normalizeFolderPath(filePath);
+  const lastSlash = normalized.lastIndexOf("/");
+  if (lastSlash <= 0) return normalized;
+  return normalized.slice(0, lastSlash);
+}

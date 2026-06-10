@@ -51,7 +51,11 @@ export function Sidebar({
   }, [activeFolderPath]);
 
   return (
-    <aside className="lumen-sidebar flex h-full w-[284px] shrink-0 flex-col border-r border-white/8">
+    <aside
+      className="lumen-sidebar flex h-full w-[284px] shrink-0 flex-col border-r border-white/8"
+      data-lumen-sidebar
+      onWheel={(e) => e.stopPropagation()}
+    >
       <div className="px-4 pb-3 pt-5">
         <div className="mb-5 flex items-center gap-3 px-1">
           <div className="h-10 w-10 rounded-full bg-[radial-gradient(circle_at_50%_38%,#ffd36f_0_18%,#ff6f61_19%_32%,#2f8cff_33%_58%,#183552_59%)] shadow-lg shadow-[#2f8cff]/25" />

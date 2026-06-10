@@ -43,6 +43,22 @@ export interface WebImageDto {
   url: string;
 }
 
+export interface WebPhotoDetailsDto {
+  fileName: string;
+  filePath: string;
+  folderPath: string;
+  fileSizeBytes: number;
+  fileSizeLabel: string;
+  width: number | null;
+  height: number | null;
+  extension: string | null;
+  cameraModel: string | null;
+  dateCreated: string | null;
+  dateModified: string | null;
+  dateTaken: string | null;
+  favorite: boolean;
+}
+
 type LumenHost = {
   isAvailable: boolean;
   call<T>(method: string, params?: unknown): Promise<T>;

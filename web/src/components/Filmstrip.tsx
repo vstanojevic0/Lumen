@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { useRef } from "react";
 import type { PhotoItem } from "../types";
 import { HostPhotoImage } from "./HostPhotoImage";
@@ -6,9 +7,10 @@ interface FilmstripProps {
   photos: PhotoItem[];
   selectedId: string;
   onSelect: (id: string) => void;
+  onPhotoContextMenu?: (photoId: string, event: MouseEvent) => void;
 }
 
-export function Filmstrip({ photos, selectedId, onSelect }: FilmstripProps) {
+export function Filmstrip({ photos, selectedId, onSelect, onPhotoContextMenu }: FilmstripProps) {
   const stripRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -35,6 +37,10 @@ export function Filmstrip({ photos, selectedId, onSelect }: FilmstripProps) {
               key={photo.id}
               type="button"
               onClick={() => onSelect(photo.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                onPhotoContextMenu?.(photo.id, event);
+              }}
               className={`relative h-[76px] w-[104px] shrink-0 overflow-hidden rounded-lg border transition ${
                 selected
                   ? "border-[#087bff] ring-2 ring-[#087bff] ring-offset-2 ring-offset-[#132235]"

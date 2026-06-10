@@ -109,6 +109,76 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
     public IReadOnlyList<WebFolderDto> GetWebFolderTree() =>
         _index.GetFolderTree().Select(MapWebFolder).ToList();
 
+    public WebPhotoDetailsDto? GetPhotoDetails(string absolutePath)
+    {
+        absolutePath = Path.GetFullPath(absolutePath);
+        var record = _photos.GetByPath(absolutePath);
+        if (record is null)
+            return null;
+
+        var favorites = GetFavoritePathSet();
+        return new WebPhotoDetailsDto(
+            record.FileName,
+            record.FilePath,
+            Path.GetDirectoryName(record.FilePath) ?? string.Empty,
+            record.FileSize,
+            FormatFileSize(record.FileSize),
+            record.Width,
+            record.Height,
+            record.Extension,
+            record.CameraModel,
+            FormatIsoDate(record.DateCreated),
+            FormatIsoDate(record.DateModified),
+            FormatIsoDate(record.DateTaken),
+            favorites.Contains(record.FilePath));
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:0.#} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):0.#} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):0.##} GB";
+    }
+
+    private static string? FormatIsoDate(DateTimeOffset? value) =>
+        value?.ToString("O");
+
+    public void RevealPhotoInFileManager(string absolutePath)
+    {
+        absolutePath = Path.GetFullPath(absolutePath);
+        if (!File.Exists(absolutePath))
+            throw new FileNotFoundException("Photo not found on disk.", absolutePath);
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            System.Diagnostics.Process.Start("open", $"-R \"{absolutePath}\"");
+            return;
+        }
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"/select,\"{absolutePath}\"",
+                UseShellExecute = true
+            });
+            return;
+        }
+
+        var folder = Path.GetDirectoryName(absolutePath);
+        if (string.IsNullOrWhiteSpace(folder))
+            return;
+
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "xdg-open",
+            Arguments = folder,
+            UseShellExecute = true
+        });
+    }
+
     public void SetPhotoFavorite(string absolutePath, bool favorite)
     {
         absolutePath = Path.GetFullPath(absolutePath);

@@ -68,53 +68,25 @@ export function usePhotoNavigation({
       }
     };
 
-    const onMouseDown = (event: MouseEvent) => {
-      if (isInteractiveTarget(event.target)) return;
-
-      if (event.button === 3) {
-        if (goToPrevious()) event.preventDefault();
-        return;
-      }
-
-      if (event.button === 4) {
-        if (goToNext()) event.preventDefault();
-      }
-    };
-
-    const onAuxClick = (event: MouseEvent) => {
-      if (isInteractiveTarget(event.target)) return;
-
-      if (event.button === 3) {
-        event.preventDefault();
-        goToPrevious();
-        return;
-      }
-
-      if (event.button === 4) {
-        event.preventDefault();
-        goToNext();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("auxclick", onAuxClick);
-
     const onWheel = (event: WheelEvent) => {
       if (!allowWheel) return;
+      if (event.ctrlKey || event.metaKey) return;
       if (isInteractiveTarget(event.target)) return;
 
       const target = event.target;
-      if (target instanceof HTMLElement) {
-        const scrollHost = target.closest("[data-photo-scroll-container]");
-        if (scrollHost instanceof HTMLElement && scrollHost.scrollHeight > scrollHost.clientHeight + 1) {
-          const atTop = scrollHost.scrollTop <= 0;
-          const atBottom =
-            scrollHost.scrollTop + scrollHost.clientHeight >= scrollHost.scrollHeight - 1;
-          const scrollingDown = event.deltaY > 0;
-          const scrollingUp = event.deltaY < 0;
-          if ((scrollingDown && !atBottom) || (scrollingUp && !atTop)) return;
-        }
+      if (!(target instanceof HTMLElement)) return;
+
+      if (target.closest("[data-lumen-sidebar]")) return;
+      if (!target.closest("[data-photo-viewer]")) return;
+
+      const scrollHost = target.closest("[data-photo-scroll-container]");
+      if (scrollHost instanceof HTMLElement && scrollHost.scrollHeight > scrollHost.clientHeight + 1) {
+        const atTop = scrollHost.scrollTop <= 0;
+        const atBottom =
+          scrollHost.scrollTop + scrollHost.clientHeight >= scrollHost.scrollHeight - 1;
+        const scrollingDown = event.deltaY > 0;
+        const scrollingUp = event.deltaY < 0;
+        if ((scrollingDown && !atBottom) || (scrollingUp && !atTop)) return;
       }
 
       const delta =
@@ -130,10 +102,10 @@ export function usePhotoNavigation({
       window.addEventListener("wheel", onWheel, { passive: false });
     }
 
+    window.addEventListener("keydown", onKeyDown);
+
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("auxclick", onAuxClick);
       if (allowWheel) window.removeEventListener("wheel", onWheel);
     };
   }, [enabled, allowWheel, goToPrevious, goToNext]);

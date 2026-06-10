@@ -1,7 +1,9 @@
+import type { MouseEvent } from "react";
 import { Heart } from "lucide-react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { findJumpSectionPath, findSectionPathForPhotoId } from "../lumen/folderScroll";
+import { findJumpSectionPath } from "../lumen/folderScroll";
+import type { LibraryJumpTarget } from "../lumen/useLumenLibrary";
 import type { PhotoItem } from "../types";
 import { HostPhotoImage } from "./HostPhotoImage";
 
@@ -58,8 +60,9 @@ export function VirtualLibraryGrid({
   selectedId,
   zoom,
   libraryVisible,
-  folderJumpTarget,
+  libraryJumpTarget,
   onSelect,
+  onPhotoContextMenu,
   onActiveFolderChange,
   onJumpComplete,
 }: {
@@ -67,13 +70,16 @@ export function VirtualLibraryGrid({
   selectedId: string;
   zoom: number;
   libraryVisible: boolean;
-  folderJumpTarget: string | null;
+  libraryJumpTarget: LibraryJumpTarget | null;
   onSelect: (id: string) => void;
+  onPhotoContextMenu?: (photoId: string, event: MouseEvent) => void;
   onActiveFolderChange: (path: string | null) => void;
   onJumpComplete: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const wasLibraryVisibleRef = useRef(libraryVisible);
+  const savedScrollTopRef = useRef(0);
+  const skipScrollRestoreRef = useRef(false);
   const [containerWidth, setContainerWidth] = useState(800);
 
   const tileMin = Math.round(96 + zoom * 0.6);
@@ -158,29 +164,51 @@ export function VirtualLibraryGrid({
   useEffect(() => {
     const wasVisible = wasLibraryVisibleRef.current;
     wasLibraryVisibleRef.current = libraryVisible;
-    if (wasVisible || !libraryVisible || !selectedId) return;
 
-    const sectionPath = findSectionPathForPhotoId(sections, selectedId);
-    if (sectionPath) publishActiveFolder(sectionPath);
-
-    const rowIndex = rows.findIndex(
-      (row) => row.kind === "tiles" && row.photos.some((photo) => photo.id === selectedId),
-    );
-    if (rowIndex >= 0) {
-      virtualizer.scrollToIndex(rowIndex, { align: "center" });
+    if (wasVisible && !libraryVisible && scrollRef.current) {
+      savedScrollTopRef.current = scrollRef.current.scrollTop;
+      return;
     }
-  }, [libraryVisible, selectedId, sections, rows, virtualizer, publishActiveFolder]);
+
+    if (!wasVisible && libraryVisible) {
+      if (skipScrollRestoreRef.current) {
+        skipScrollRestoreRef.current = false;
+        return;
+      }
+
+      const savedTop = savedScrollTopRef.current;
+      if (savedTop <= 0) {
+        const rowIndex = rows.findIndex(
+          (row) => row.kind === "tiles" && row.photos.some((photo) => photo.id === selectedId),
+        );
+        if (rowIndex >= 0) {
+          virtualizer.scrollToIndex(rowIndex, { align: "center" });
+        }
+        return;
+      }
+
+      const restore = () => {
+        if (scrollRef.current) scrollRef.current.scrollTop = savedTop;
+      };
+      requestAnimationFrame(() => requestAnimationFrame(restore));
+    }
+  }, [libraryVisible, selectedId, rows, virtualizer]);
 
   useEffect(() => {
-    if (!folderJumpTarget) return;
+    if (!libraryJumpTarget) return;
+
+    skipScrollRestoreRef.current = true;
+
+    const { folderPath, photoId } = libraryJumpTarget;
 
     const finish = (path: string | null) => {
       if (path) publishActiveFolder(path);
       onJumpComplete();
     };
 
-    if (folderJumpTarget === "__top__") {
+    if (folderPath === "__top__") {
       scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      savedScrollTopRef.current = 0;
       const timer = window.setTimeout(
         () => finish(sections[0]?.folderPath ?? null),
         650,
@@ -188,22 +216,34 @@ export function VirtualLibraryGrid({
       return () => window.clearTimeout(timer);
     }
 
-    const sectionPath = findJumpSectionPath(sections, folderJumpTarget);
+    const sectionPath = findJumpSectionPath(sections, folderPath);
     if (!sectionPath) {
       finish(null);
       return;
     }
 
-    const rowIndex = rows.findIndex(
-      (row) => row.kind === "header" && row.folderPath === sectionPath,
-    );
+    let rowIndex = -1;
+    if (photoId) {
+      rowIndex = rows.findIndex(
+        (row) => row.kind === "tiles" && row.photos.some((photo) => photo.id === photoId),
+      );
+    }
+    if (rowIndex < 0) {
+      rowIndex = rows.findIndex(
+        (row) => row.kind === "header" && row.folderPath === sectionPath,
+      );
+    }
+
     if (rowIndex >= 0) {
-      virtualizer.scrollToIndex(rowIndex, { align: "start", behavior: "smooth" });
+      virtualizer.scrollToIndex(rowIndex, {
+        align: photoId ? "center" : "start",
+        behavior: "smooth",
+      });
     }
 
     const timer = window.setTimeout(() => finish(sectionPath), 750);
     return () => window.clearTimeout(timer);
-  }, [folderJumpTarget, rows, sections, virtualizer, publishActiveFolder, onJumpComplete]);
+  }, [libraryJumpTarget, rows, sections, virtualizer, publishActiveFolder, onJumpComplete]);
 
   if (sections.length === 0) {
     return (
@@ -264,6 +304,10 @@ export function VirtualLibraryGrid({
                       key={photo.id}
                       type="button"
                       onClick={() => onSelect(photo.id)}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        onPhotoContextMenu?.(photo.id, event);
+                      }}
                       className={`group relative overflow-hidden rounded-lg border bg-white/5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-white/22 hover:shadow-2xl hover:shadow-black/25 ${
                         photo.id === selectedId
                           ? "border-[#1e88ff] ring-2 ring-[#1e88ff]/80"
