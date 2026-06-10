@@ -32,9 +32,10 @@ public partial class App : Application
             var folders = new FolderRepository(database);
             var photos = new PhotoRepository(database);
             var scanState = new ScanStateRepository(database);
+            var photoScanner = new PhotoScannerService();
+            var catalogRepair = new CatalogRepairService(database, photos, scanState, photoScanner);
             var metadata = new MetadataExtractorService();
             var thumbnails = new ThumbnailCacheService();
-            var photoScanner = new PhotoScannerService();
             var librarySync = new LibrarySyncService(
                 database,
                 folders,
@@ -65,7 +66,9 @@ public partial class App : Application
                 new InMemoryLibraryIndex(),
                 new JsonAppSettingsStore(),
                 librarySync,
-                photos);
+                photos,
+                catalogRepair,
+                scanState);
 
             desktop.MainWindow = new WebHostWindow(library);
         }

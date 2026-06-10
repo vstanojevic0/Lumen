@@ -21,6 +21,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
     private readonly IAppSettingsStore _store;
     private readonly LibrarySyncService _sync;
     private readonly PhotoRepository _photos;
+    private readonly CatalogRepairService _catalogRepair;
+    private readonly ScanStateRepository _scanState;
     private readonly CancellationTokenSource _lifetimeCts = new();
     private TopLevel? _topLevel;
 
@@ -34,12 +36,16 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         InMemoryLibraryIndex index,
         IAppSettingsStore store,
         LibrarySyncService sync,
-        PhotoRepository photos)
+        PhotoRepository photos,
+        CatalogRepairService catalogRepair,
+        ScanStateRepository scanState)
     {
         _index = index;
         _store = store;
         _sync = sync;
         _photos = photos;
+        _catalogRepair = catalogRepair;
+        _scanState = scanState;
     }
 
     public void AttachTopLevel(TopLevel topLevel) => _topLevel = topLevel;
@@ -184,7 +190,7 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         LibraryUpdated?.Invoke();
     }
 
-    private async Task RunBackgroundSyncAsync(bool fullRescan)
+    private async Task RunBackgroundSyncAsync(bool fullRescan, bool isRecoveryAttempt = false)
     {
         var roots = GetActiveScanRoots();
         if (roots.Count == 0)
@@ -198,6 +204,28 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
 
         try
         {
+            if (!isRecoveryAttempt)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() => StatusText = "Preparing library…");
+
+                var plan = await Task.Run(
+                    () => _catalogRepair.AssessSyncPlan(roots, _lifetimeCts.Token),
+                    _lifetimeCts.Token).ConfigureAwait(false);
+
+                if (plan.NeedsFullRescan)
+                {
+                    fullRescan = true;
+                    var preparing = FormatPreparingStatus(plan.Reason);
+                    await Dispatcher.UIThread.InvokeAsync(() => StatusText = preparing);
+                }
+            }
+            else
+            {
+                _catalogRepair.RepairCatalog();
+                fullRescan = true;
+                await Dispatcher.UIThread.InvokeAsync(() => StatusText = "Fixing library index…");
+            }
+
             var progress = new Progress<SyncProgress>(p =>
             {
                 Dispatcher.UIThread.Post(() =>
@@ -225,6 +253,8 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
                 progress,
                 _lifetimeCts.Token).ConfigureAwait(false);
 
+            _scanState.ClearLastSyncError();
+
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 TotalPhotoCount = _index.TotalPhotoCount();
@@ -245,7 +275,16 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            await Dispatcher.UIThread.InvokeAsync(() => StatusText = $"Sync error: {ex.Message}");
+            _scanState.SetLastSyncError(ex.Message);
+
+            if (!isRecoveryAttempt)
+            {
+                await RunBackgroundSyncAsync(fullRescan: true, isRecoveryAttempt: true);
+                return;
+            }
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+                StatusText = $"Could not finish indexing all photos ({TotalPhotoCount:N0} loaded so far).");
         }
         finally
         {
@@ -256,6 +295,16 @@ public sealed partial class LibraryViewModel : ObservableObject, IDisposable
             });
         }
     }
+
+    private static string FormatPreparingStatus(string? reason) =>
+        reason switch
+        {
+            "finishing library index" => "Indexing your photos…",
+            "recovering from sync error" => "Fixing library index…",
+            "catalog repaired" => "Indexing your photos…",
+            "empty catalog" => "Scanning library…",
+            _ => "Scanning library…",
+        };
 
     private async Task ScanLibraryAsync(bool fullRescan)
     {

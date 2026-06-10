@@ -96,6 +96,30 @@ public sealed class LocalDatabaseService : IDisposable
             INSERT OR IGNORE INTO ScanState (Id) VALUES (1);
             """;
         command.ExecuteNonQuery();
+        EnsureScanStateColumns(connection);
+    }
+
+    private static void EnsureScanStateColumns(SqliteConnection connection)
+    {
+        EnsureColumn(connection, "ScanState", "CatalogRepairVersion", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumn(connection, "ScanState", "LastSyncError", "TEXT");
+    }
+
+    private static void EnsureColumn(SqliteConnection connection, string table, string column, string definition)
+    {
+        using var info = connection.CreateCommand();
+        info.CommandText = $"PRAGMA table_info({table});";
+
+        using var reader = info.ExecuteReader();
+        while (reader.Read())
+        {
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+
+        using var alter = connection.CreateCommand();
+        alter.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {definition};";
+        alter.ExecuteNonQuery();
     }
 
     public void Dispose()
