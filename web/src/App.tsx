@@ -36,6 +36,7 @@ export default function App() {
     edits,
     activePreset,
     update,
+    patch,
     replace,
     reset,
     undo,
@@ -137,12 +138,16 @@ export default function App() {
   const sidebar = (
     <Sidebar
       totalCount={library.totalCount}
+      favoriteCount={library.favoriteCount}
       sections={sections}
       scanRoots={library.folders}
       view={library.view}
       activeFolderPath={library.activeFolderPath}
       host={library.host}
+      statusText={library.statusText}
+      isBusy={library.isBusy}
       onSelectAll={library.selectAllPhotos}
+      onSelectFavorites={library.selectFavorites}
       onSelectFolder={library.jumpToFolder}
       onAddFolder={() => void library.addFolder()}
     />
@@ -203,7 +208,6 @@ export default function App() {
           onRedo={redo}
           onExport={handleExport}
           onBack={mode === "edit" ? backToLibrary : undefined}
-          statusText={library.statusText}
         />
 
         {mode === "edit" ? (
@@ -215,6 +219,8 @@ export default function App() {
               zoom={zoom}
               onSelectPhoto={handleSelectPhoto}
               onPhotoContextMenu={openPhotoContextMenu}
+              onChange={update}
+              onPatch={patch}
             />
             {inspectorOpen ? (
               <RightEditPanel

@@ -1,10 +1,14 @@
 import type { MouseEvent } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { defaultCropForAspect, fitCropToAspect } from "../lib/crop";
 import { buildPreviewStyle } from "../lib/filters";
+import { rotateOrientation } from "../lib/rotation";
 import { mediaFullUrl, mediaPreviewUrl } from "../lumen/mediaUrls";
 import { useMediaBase } from "../lumen/useMediaBase";
 import type { AspectRatio, EditState, PhotoItem } from "../types";
+import { applyCropClipStyle, CropOverlay } from "./CropOverlay";
 import { Filmstrip } from "./Filmstrip";
+import { PreviewToolBar } from "./PreviewToolBar";
 
 interface EditingCanvasProps {
   photo: PhotoItem;
@@ -13,19 +17,8 @@ interface EditingCanvasProps {
   zoom: number;
   onSelectPhoto: (id: string) => void;
   onPhotoContextMenu?: (photoId: string, event: MouseEvent) => void;
-}
-
-function aspectClass(ratio: AspectRatio): string {
-  switch (ratio) {
-    case "1:1":
-      return "aspect-square";
-    case "4:3":
-      return "aspect-[4/3]";
-    case "16:9":
-      return "aspect-video";
-    default:
-      return "";
-  }
+  onChange: <K extends keyof EditState>(key: K, value: EditState[K]) => void;
+  onPatch: (partial: Partial<EditState>) => void;
 }
 
 export function EditingCanvas({
@@ -35,6 +28,8 @@ export function EditingCanvas({
   zoom,
   onSelectPhoto,
   onPhotoContextMenu,
+  onChange,
+  onPatch,
 }: EditingCanvasProps) {
   const { imageStyle, frameStyle, warmOverlay, coolOverlay, tintOverlay } = buildPreviewStyle(edits);
   const scale = zoom / 100;
@@ -74,8 +69,36 @@ export function EditingCanvas({
     return () => window.clearTimeout(t);
   }, [displaySrc, previewFailed, previewReady]);
 
+  const handleRotateLeft = useCallback(() => {
+    onChange("orientation", rotateOrientation(edits.orientation, -90));
+  }, [edits.orientation, onChange]);
+
+  const handleRotateRight = useCallback(() => {
+    onChange("orientation", rotateOrientation(edits.orientation, 90));
+  }, [edits.orientation, onChange]);
+
+  const handleToggleCrop = useCallback(() => {
+    const next = !edits.cropMode;
+    onPatch({
+      cropMode: next,
+      cropRect: next ? defaultCropForAspect(edits.aspectRatio) : edits.cropRect,
+    });
+  }, [edits.aspectRatio, edits.cropMode, edits.cropRect, onPatch]);
+
+  const handleAspectRatio = useCallback(
+    (ratio: AspectRatio) => {
+      onPatch({
+        aspectRatio: ratio,
+        cropRect: edits.cropMode ? fitCropToAspect(edits.cropRect, ratio) : edits.cropRect,
+      });
+    },
+    [edits.cropMode, edits.cropRect, onPatch],
+  );
+
   const isLoading =
     waitingForHost || (Boolean(displaySrc) && !previewReady && !previewFailed);
+
+  const cropClip = applyCropClipStyle(edits.cropRect, edits.cropMode);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-transparent">
@@ -92,11 +115,7 @@ export function EditingCanvas({
             }}
           >
             <div className="flex items-center justify-center" style={frameStyle}>
-              <div
-                className={`relative inline-flex max-h-full max-w-full items-center justify-center overflow-visible rounded-sm border border-white/18 bg-black/25 shadow-2xl shadow-black/55 ${
-                  aspectClass(edits.aspectRatio)
-                } ${edits.cropMode ? "ring-1 ring-white/20" : ""}`}
-              >
+              <div className="relative inline-flex max-h-full max-w-full items-center justify-center overflow-visible rounded-sm border border-white/18 bg-black/25 shadow-2xl shadow-black/55">
                 <div className="relative flex min-h-[200px] min-w-[280px] max-h-[calc(100vh-10rem)] max-w-[min(100%,calc(100vw-12rem))] items-center justify-center">
                   {previewFailed ? (
                     <div className="flex h-[min(60vh,480px)] w-[min(80vw,640px)] flex-col items-center justify-center rounded-lg bg-white/5 px-8 text-center">
@@ -113,19 +132,19 @@ export function EditingCanvas({
                     </div>
                   ) : null}
 
-                {displaySrc && !previewFailed ? (
-                  <img
-                    key={displaySrc}
-                    src={displaySrc}
-                    alt={photo.title}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      onPhotoContextMenu?.(photo.id, event);
-                    }}
+                  {displaySrc && !previewFailed ? (
+                    <img
+                      key={displaySrc}
+                      src={displaySrc}
+                      alt={photo.title}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        onPhotoContextMenu?.(photo.id, event);
+                      }}
                       className={`block max-h-[calc(100vh-10rem)] max-w-[min(100%,calc(100vw-12rem))] object-contain transition-opacity duration-200 ${
                         previewReady ? "opacity-100" : "opacity-0"
                       }`}
-                      style={imageStyle}
+                      style={{ ...imageStyle, ...cropClip }}
                       draggable={false}
                       decoding="async"
                       onLoad={() => setPreviewReady(true)}
@@ -141,28 +160,38 @@ export function EditingCanvas({
                       No preview source
                     </div>
                   ) : null}
-                </div>
-                {previewReady ? (
-                  <>
-                    <div className="pointer-events-none absolute inset-0" style={warmOverlay} />
-                    <div className="pointer-events-none absolute inset-0" style={coolOverlay} />
-                    <div className="pointer-events-none absolute inset-0" style={tintOverlay} />
-                  </>
-                ) : null}
 
-                {edits.cropMode && previewReady ? (
-                  <div className="pointer-events-none absolute inset-4 border-2 border-dashed border-[#75c9a3]/85">
-                    <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
-                      {Array.from({ length: 9 }).map((_, i) => (
-                        <div key={i} className="border border-white/15" />
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                  {previewReady && !edits.cropMode ? (
+                    <>
+                      <div className="pointer-events-none absolute inset-0" style={warmOverlay} />
+                      <div className="pointer-events-none absolute inset-0" style={coolOverlay} />
+                      <div className="pointer-events-none absolute inset-0" style={tintOverlay} />
+                    </>
+                  ) : null}
+
+                  {edits.cropMode && previewReady ? (
+                    <CropOverlay
+                      cropRect={edits.cropRect}
+                      aspectRatio={edits.aspectRatio}
+                      onChange={(rect) => onChange("cropRect", rect)}
+                    />
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
         </div>
+
+        {previewReady ? (
+          <PreviewToolBar
+            cropMode={edits.cropMode}
+            aspectRatio={edits.aspectRatio}
+            onRotateLeft={handleRotateLeft}
+            onRotateRight={handleRotateRight}
+            onToggleCrop={handleToggleCrop}
+            onAspectRatio={handleAspectRatio}
+          />
+        ) : null}
       </div>
 
       <Filmstrip

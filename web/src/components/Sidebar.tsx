@@ -3,6 +3,7 @@ import {
   Folder,
   Images,
   Plus,
+  Star,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -16,28 +17,37 @@ import type { LibraryView, WebFolderDto } from "../lumen/hostBridge";
 
 export function Sidebar({
   totalCount = 0,
+  favoriteCount = 0,
   sections = [],
   scanRoots = [],
   view = "all",
   activeFolderPath = null,
   host = false,
+  statusText,
+  isBusy = false,
   onSelectAll,
+  onSelectFavorites,
   onSelectFolder,
   onAddFolder,
 }: {
   totalCount?: number;
+  favoriteCount?: number;
   sections?: GallerySectionLike[];
   scanRoots?: WebFolderDto[];
   view?: LibraryView;
   activeFolderPath?: string | null;
   host?: boolean;
+  statusText?: string;
+  isBusy?: boolean;
   onSelectAll?: () => void;
+  onSelectFavorites?: () => void;
   onSelectFolder?: (path: string) => void;
   onAddFolder?: () => void;
 }) {
   const [foldersOpen, setFoldersOpen] = useState(true);
   const folderButtonRefs = useRef(new Map<string, HTMLButtonElement>());
-  const allActive = view === "all";
+  const allActive = view === "all" && !activeFolderPath;
+  const favoritesActive = view === "favorites";
   const folderGroups = useMemo(
     () => buildSidebarFromSections(sections, scanRoots),
     [sections, scanRoots],
@@ -64,13 +74,21 @@ export function Sidebar({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-        <nav>
+        <nav className="space-y-px">
           <NavButton
             icon={Images}
             label="All Photos"
             active={allActive}
             count={formatCount(totalCount, host)}
             onClick={onSelectAll}
+          />
+          <NavButton
+            icon={Star}
+            label="Favorites"
+            active={favoritesActive}
+            count={favoriteCount > 0 ? favoriteCount : host ? 0 : undefined}
+            iconClassName={favoritesActive ? "fill-[#f5c842] text-[#f5c842]" : "text-[#f5c842]/70"}
+            onClick={onSelectFavorites}
           />
         </nav>
 
@@ -150,8 +168,10 @@ export function Sidebar({
       </div>
 
       <div className="border-t border-white/6 px-4 py-3">
-        <span className="text-[11px] text-white/38">
-          {totalCount.toLocaleString()} photos indexed
+        <span className="block truncate text-[11px] text-white/38" title={isBusy ? statusText : undefined}>
+          {isBusy && statusText
+            ? statusText
+            : `${totalCount.toLocaleString()} photos indexed`}
         </span>
       </div>
     </aside>
@@ -163,12 +183,14 @@ function NavButton({
   label,
   active = false,
   count,
+  iconClassName,
   onClick,
 }: {
   icon: LucideIcon;
   label: string;
   active?: boolean;
   count?: string | number;
+  iconClassName?: string;
   onClick?: () => void;
 }) {
   return (
@@ -177,7 +199,10 @@ function NavButton({
       onClick={onClick}
       className={`lumen-sidebar-folder ${active ? "lumen-sidebar-folder--active" : ""}`}
     >
-      <Icon size={16} className={active ? "text-white" : "text-white/55"} />
+      <Icon
+        size={16}
+        className={iconClassName ?? (active ? "text-white" : "text-white/55")}
+      />
       <span className="min-w-0 flex-1 truncate text-left">{label}</span>
       {count !== undefined ? (
         <span className="shrink-0 tabular-nums text-white/42">

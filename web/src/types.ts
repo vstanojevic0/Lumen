@@ -2,6 +2,13 @@ export type AspectRatio = "free" | "1:1" | "4:3" | "16:9";
 export type AppMode = "library" | "edit";
 export type PhotoOrientation = 0 | 90 | 180 | 270;
 
+export interface CropRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface EditValues {
   exposure: number;
   contrast: number;
@@ -37,9 +44,12 @@ export interface PhotoItem {
 export interface EditState extends EditValues {
   orientation: PhotoOrientation;
   cropMode: boolean;
+  cropRect: CropRect;
   aspectRatio: AspectRatio;
   grayscale: boolean;
 }
+
+export const defaultCropRect = (): CropRect => ({ x: 0, y: 0, w: 1, h: 1 });
 
 export const defaultEditValues = (): EditState => ({
   exposure: 0,
@@ -58,6 +68,7 @@ export const defaultEditValues = (): EditState => ({
   rotation: 0,
   orientation: 0,
   cropMode: false,
+  cropRect: defaultCropRect(),
   aspectRatio: "free",
   grayscale: false,
 });

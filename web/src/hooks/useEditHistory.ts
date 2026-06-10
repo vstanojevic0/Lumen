@@ -25,6 +25,17 @@ export function useEditHistory(initial?: Partial<EditState>) {
     [pushHistory],
   );
 
+  const patch = useCallback(
+    (partial: Partial<EditState>) => {
+      setEdits((current) => {
+        pushHistory(current);
+        return { ...current, ...partial };
+      });
+      setActivePreset(null);
+    },
+    [pushHistory],
+  );
+
   const replace = useCallback(
     (next: EditState, presetId: string | null = null) => {
       setEdits((current) => {
@@ -74,6 +85,7 @@ export function useEditHistory(initial?: Partial<EditState>) {
     edits,
     activePreset,
     update,
+    patch,
     replace,
     reset,
     undo,

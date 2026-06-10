@@ -4,6 +4,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Redo2,
+  SlidersHorizontal,
   Star,
   Undo2,
 } from "lucide-react";
@@ -25,7 +26,6 @@ interface TopToolbarProps {
   onRedo: () => void;
   onExport: () => void;
   onBack?: () => void;
-  statusText?: string;
 }
 
 export function TopToolbar({
@@ -43,7 +43,6 @@ export function TopToolbar({
   onRedo,
   onExport,
   onBack,
-  statusText,
 }: TopToolbarProps) {
   return (
     <header className="lumen-toolbar flex h-[60px] shrink-0 items-center gap-3 border-b border-white/8 px-5">
@@ -60,7 +59,7 @@ export function TopToolbar({
             <button
               type="button"
               onClick={onBack}
-              className="flex h-9 items-center gap-2 rounded-xl border border-white/7 bg-white/8 px-3 text-sm font-medium text-white/88 transition hover:border-white/14 hover:bg-white/12"
+              className="flex h-10 items-center gap-2 rounded-xl border border-white/7 bg-white/8 px-3 text-sm font-medium text-white/88 transition hover:border-white/14 hover:bg-white/12"
               title="Back to library (Esc)"
             >
               <ArrowLeft size={16} className="text-white/65" />
@@ -68,9 +67,30 @@ export function TopToolbar({
             </button>
           ) : null}
 
+          {onToggleInspector ? (
+            <button
+              type="button"
+              onClick={onToggleInspector}
+              title={inspectorOpen ? "Hide edit panel" : "Show edit panel"}
+              className={`flex h-10 items-center gap-2 rounded-xl border px-3.5 text-sm font-medium transition ${
+                inspectorOpen
+                  ? "border-[#087bff]/45 bg-[#087bff]/14 text-white"
+                  : "border-white/7 bg-white/8 text-white/75 hover:border-white/14 hover:bg-white/12 hover:text-white"
+              }`}
+            >
+              <SlidersHorizontal size={17} />
+              <span>Edit panel</span>
+              {inspectorOpen ? (
+                <PanelRightClose size={16} className="text-white/55" />
+              ) : (
+                <PanelRightOpen size={16} className="text-white/55" />
+              )}
+            </button>
+          ) : null}
+
           {photoTitle ? (
             <div
-              className="hidden min-w-0 max-w-[min(28vw,320px)] truncate text-sm text-white/55 sm:block"
+              className="hidden min-w-0 max-w-[min(24vw,280px)] truncate text-sm text-white/45 lg:block"
               title={photoTitle}
             >
               {photoTitle}
@@ -83,7 +103,7 @@ export function TopToolbar({
                 type="button"
                 onClick={onToggleFavorite}
                 title={favorite ? "Remove from favorites" : "Add to favorites"}
-                className={`flex h-9 w-9 items-center justify-center rounded-xl border transition ${
+                className={`flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                   favorite
                     ? "border-[#f5c842]/45 bg-[#f5c842]/14 text-[#f5c842]"
                     : "border-white/7 bg-white/8 text-white/55 hover:border-white/14 hover:text-white"
@@ -102,22 +122,12 @@ export function TopToolbar({
               </ToolbarBtn>
             </Segmented>
 
-            {onToggleInspector ? (
-              <ToolbarBtn
-                onClick={onToggleInspector}
-                active={inspectorOpen}
-                title={inspectorOpen ? "Hide info & edit panel" : "Show info & edit panel"}
-              >
-                {inspectorOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
-              </ToolbarBtn>
-            ) : null}
-
             <ZoomControl zoom={zoom} onZoomChange={onZoomChange} />
 
             <button
               type="button"
               onClick={onExport}
-              className="flex items-center gap-2 rounded-xl bg-[#087bff] px-3.5 py-2 text-sm font-semibold text-white shadow-lg shadow-[#087bff]/25 hover:bg-[#1e88ff]"
+              className="flex h-10 items-center gap-2 rounded-xl bg-[#087bff] px-4 text-sm font-semibold text-white shadow-lg shadow-[#087bff]/25 hover:bg-[#1e88ff]"
             >
               <Download size={15} />
               <span className="hidden sm:inline">Export</span>
@@ -125,24 +135,13 @@ export function TopToolbar({
           </div>
         </>
       )}
-
-      {statusText ? (
-        <span
-          className={`min-w-0 truncate text-xs text-white/35 ${
-            mode === "library" ? "ml-3 max-w-[32vw]" : "max-w-[16vw]"
-          }`}
-          title={statusText}
-        >
-          {statusText}
-        </span>
-      ) : null}
     </header>
   );
 }
 
 function Segmented({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-9 items-center gap-0.5 rounded-xl border border-white/7 bg-white/8 p-0.5">
+    <div className="flex h-10 items-center gap-0.5 rounded-xl border border-white/7 bg-white/8 p-0.5">
       {children}
     </div>
   );
@@ -156,7 +155,7 @@ function ZoomControl({
   onZoomChange: (z: number) => void;
 }) {
   return (
-    <div className="flex h-9 items-center gap-2.5 rounded-xl border border-white/7 bg-white/8 px-3">
+    <div className="flex h-10 items-center gap-2.5 rounded-xl border border-white/7 bg-white/8 px-3">
       <input
         type="range"
         min={25}
@@ -174,13 +173,11 @@ function ToolbarBtn({
   children,
   onClick,
   disabled,
-  active,
   title,
 }: {
   children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
-  active?: boolean;
   title?: string;
 }) {
   return (
@@ -189,11 +186,7 @@ function ToolbarBtn({
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
-        active
-          ? "bg-[#087bff]/90 text-white"
-          : "text-white/55 hover:bg-white/10 hover:text-white disabled:opacity-30"
-      }`}
+      className="flex h-9 w-9 items-center justify-center rounded-lg text-white/55 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
     >
       {children}
     </button>

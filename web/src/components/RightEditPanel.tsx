@@ -8,14 +8,12 @@ import {
   HardDrive,
   Info,
   RotateCcw,
-  RotateCw,
   SlidersHorizontal,
   X,
 } from "lucide-react";
 import { presets, type PresetId } from "../lib/presets";
-import { rotateOrientation } from "../lib/rotation";
 import { usePhotoDetails } from "../hooks/usePhotoDetails";
-import type { AspectRatio, EditState, PhotoItem } from "../types";
+import type { EditState, PhotoItem } from "../types";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { PresetButton } from "./PresetButton";
 import { SliderControl } from "./SliderControl";
@@ -47,8 +45,6 @@ export function RightEditPanel({
   onReset,
   onExport,
 }: RightEditPanelProps) {
-  const ratios: AspectRatio[] = ["free", "1:1", "4:3", "16:9"];
-
   return (
     <aside className="glass flex h-full w-[320px] shrink-0 flex-col border-l border-white/8">
       <header className="flex shrink-0 items-center gap-2 border-b border-white/6 px-3 py-2.5">
@@ -91,7 +87,6 @@ export function RightEditPanel({
           <EditControlsView
             edits={edits}
             activePreset={activePreset}
-            ratios={ratios}
             onChange={onChange}
             onApplyPreset={onApplyPreset}
             onReset={onReset}
@@ -260,7 +255,6 @@ function InfoRow({
 function EditControlsView({
   edits,
   activePreset,
-  ratios,
   onChange,
   onApplyPreset,
   onReset,
@@ -268,7 +262,6 @@ function EditControlsView({
 }: {
   edits: EditState;
   activePreset: PresetId | null;
-  ratios: AspectRatio[];
   onChange: <K extends keyof EditState>(key: K, value: EditState[K]) => void;
   onApplyPreset: (id: PresetId) => void;
   onReset: () => void;
@@ -377,61 +370,7 @@ function EditControlsView({
         />
       </CollapsibleSection>
 
-      <CollapsibleSection title="Rotate & Crop">
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => onChange("orientation", rotateOrientation(edits.orientation, -90))}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-2 text-xs text-white/75 hover:bg-white/10"
-          >
-            <RotateCcw size={14} />
-            Left 90°
-          </button>
-          <button
-            type="button"
-            onClick={() => onChange("orientation", rotateOrientation(edits.orientation, 90))}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-2 text-xs text-white/75 hover:bg-white/10"
-          >
-            <RotateCw size={14} />
-            Right 90°
-          </button>
-        </div>
-        {edits.orientation !== 0 ? (
-          <button
-            type="button"
-            onClick={() => onChange("orientation", 0)}
-            className="w-full rounded-lg border border-white/10 bg-white/5 py-2 text-xs text-white/70 hover:bg-white/10"
-          >
-            Reset rotation ({edits.orientation}°)
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => onChange("cropMode", !edits.cropMode)}
-          className={`w-full rounded-lg border py-2 text-xs font-medium transition ${
-            edits.cropMode
-              ? "border-[#75c9a3] bg-[#75c9a3]/18 text-white"
-              : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
-          }`}
-        >
-          {edits.cropMode ? "Crop overlay on" : "Crop overlay"}
-        </button>
-        <div className="flex flex-wrap gap-1.5">
-          {ratios.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => onChange("aspectRatio", r)}
-              className={`rounded-md border px-2 py-1 text-[10px] ${
-                edits.aspectRatio === r
-                  ? "border-[#75c9a3] bg-[#75c9a3]/18 text-white"
-                  : "border-white/10 text-white/55 hover:bg-white/8"
-              }`}
-            >
-              {r === "free" ? "Free" : r}
-            </button>
-          ))}
-        </div>
+      <CollapsibleSection title="Straighten">
         <SliderControl
           label="Straighten"
           value={edits.rotation}
@@ -441,6 +380,18 @@ function EditControlsView({
           onChange={(v) => onChange("rotation", v)}
           format={(v) => `${v.toFixed(1)}°`}
         />
+        {edits.rotation !== 0 ? (
+          <button
+            type="button"
+            onClick={() => onChange("rotation", 0)}
+            className="w-full rounded-lg border border-white/10 bg-white/5 py-2 text-xs text-white/70 hover:bg-white/10"
+          >
+            Reset straighten
+          </button>
+        ) : null}
+        <p className="text-[11px] leading-relaxed text-white/35">
+          Use the preview toolbar for rotate and crop.
+        </p>
       </CollapsibleSection>
 
       <CollapsibleSection title="Presets" defaultOpen={false}>
